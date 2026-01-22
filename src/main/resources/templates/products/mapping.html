@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+  <title>상품 관리</title>
+</head>
+
+<body>
+<div layout:fragment="content">
+
+  <div class="mb-6">
+    <h2 class="text-xl font-semibold text-gray-900">상품 관리</h2>
+    <p class="text-sm text-gray-500 mt-1">prodNo(숫자)를 등록하면 이후 해당 상품 주문은 동일 지역으로 처리됩니다.</p>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+    <form method="post" action="/products/mapping" id="mappingForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">상품번호(prodNo)</label>
+        <input type="number" name="prodNo" required
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+               placeholder="예: 248"/>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">지역 선택(1개)</label>
+
+        <input type="hidden" name="regionName" id="regionName" required/>
+
+        <div class="flex flex-wrap gap-2">
+          <button type="button"
+                  class="region-btn px-3 py-1.5 rounded-full border text-sm text-gray-700 hover:bg-gray-100"
+                  th:each="r : ${regions}"
+                  th:attr="data-region=${r}"
+                  th:text="${r}">
+            지역
+          </button>
+        </div>
+
+        <p class="text-xs text-gray-500 mt-2">지역 버튼을 클릭하면 선택됩니다.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button type="submit"
+                class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90">
+          저장
+        </button>
+        <span id="selectedRegionLabel" class="text-sm text-gray-600"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-lg">
+    <div class="px-4 py-3 border-b border-gray-200">
+      <h3 class="text-sm font-semibold text-gray-900">현재 활성 매핑</h3>
+    </div>
+
+    <div class="p-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-left text-gray-500">
+        <tr>
+          <th class="py-2 pr-4">prodNo</th>
+          <th class="py-2 pr-4">regionName</th>
+          <th class="py-2 pr-4">updatedAt</th>
+          <th class="py-2 pr-4"></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="m : ${mappings}" class="border-t">
+          <td class="py-2 pr-4" th:text="${m['prodNo']}">248</td>
+          <td class="py-2 pr-4" th:text="${m['regionName']}">압구정</td>
+          <td class="py-2 pr-4" th:text="${m['updatedAt']}">-</td>
+          <td class="py-2 pr-4">
+            <form method="post" action="/products/mapping/deactivate">
+              <input type="hidden" name="prodNo" th:value="${m['prodNo']}"/>
+              <button type="submit" class="text-xs px-3 py-1 rounded border hover:bg-gray-100">
+                비활성
+              </button>
+            </form>
+          </td>
+        </tr>
+
+        <tr th:if="${mappings == null or #lists.isEmpty(mappings)}">
+          <td class="py-3 text-gray-500" colspan="4">등록된 매핑이 없습니다.</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+  <script>
+    (function () {
+      const buttons = document.querySelectorAll('.region-btn');
+      const regionNameInput = document.getElementById('regionName');
+      const label = document.getElementById('selectedRegionLabel');
+      const form = document.getElementById('mappingForm');
+
+      function clearSelected() {
+        buttons.forEach(b => {
+          b.classList.remove('bg-primary', 'text-white');
+          b.classList.add('text-gray-700');
+        });
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          clearSelected();
+          btn.classList.add('bg-primary', 'text-white');
+          btn.classList.remove('text-gray-700');
+          regionNameInput.value = btn.dataset.region;
+          label.textContent = `선택됨: ${btn.dataset.region}`;
+        });
+      });
+
+      form.addEventListener('submit', (e) => {
+        if (!regionNameInput.value) {
+          e.preventDefault();
+          alert('지역을 선택하세요.');
+        }
+      });
+    })();
+  </script>
+</th:block>
+
+</body>
+</html>
