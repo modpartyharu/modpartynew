@@ -1,0 +1,2104 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>주문관리</title>
+    <style>
+        .progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .table-container table {
+            min-width: 1200px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .capacity-input {
+            width: 60px;
+            text-align: center;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 4px 8px;
+        }
+        /* 토스트 알림 스타일 */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            padding: 14px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            max-width: 400px;
+            animation: slideIn 0.3s ease;
+            font-size: 14px;
+        }
+        .toast.success {
+            background: #10b981;
+            color: white;
+        }
+        .toast.error {
+            background: #ef4444;
+            color: white;
+        }
+        .toast.info {
+            background: #3b82f6;
+            color: white;
+        }
+        .toast.warning {
+            background: #f59e0b;
+            color: white;
+        }
+        .toast-icon {
+            flex-shrink: 0;
+        }
+        .toast-message {
+            flex: 1;
+            line-height: 1.4;
+        }
+        .toast-close {
+            flex-shrink: 0;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .toast-close:hover {
+            opacity: 1;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+<h1 layout:fragment="page-title" th:text="${selectedRegionName != null and !selectedRegionName.isEmpty()} ? '주문관리 - ' + ${selectedRegionName} : '주문관리 - 전체'">주문관리</h1>
+
+<main layout:fragment="content">
+    <!-- 토스트 알림 컨테이너 -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="space-y-6">
+        <!-- 필터 영역 -->
+        <div class="bg-white rounded-lg shadow p-4">
+            <form th:action="@{/sync/tables-all}" method="get" class="flex flex-wrap items-center gap-4">
+                <!-- prodNo 유지 -->
+                <input type="hidden" name="prodNo" th:value="${selectedProdNo}" th:if="${selectedProdNo != null and selectedProdNo != 0}">
+                <!-- regionName 유지 -->
+                <input type="hidden" name="regionName" th:value="${selectedRegionName}" th:if="${selectedRegionName != null and !selectedRegionName.isEmpty()}">
+
+                <!-- 키워드 검색 -->
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" name="keyword" th:value="${selectedKeyword}"
+                           placeholder="이름, 직업, 출생년도 검색..."
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                </div>
+
+                <!-- 기간 조회 (order_event_date_dt 범위 검색) -->
+                <div class="flex items-center gap-2">
+                    <input type="date" name="startDate" th:value="${selectedStartDate}"
+                           class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    <span class="text-gray-500">~</span>
+                    <input type="date" name="endDate" th:value="${selectedEndDate}"
+                           class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+
+                <!-- 결제상태 필터 -->
+                <div class="min-w-[140px]">
+                    <select name="paymentStatusFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="" th:selected="${selectedPaymentStatusFilter == null or selectedPaymentStatusFilter.isEmpty()}">결제상태(전체)</option>
+                        <option value="PAID" th:selected="${selectedPaymentStatusFilter == 'PAID'}">결제</option>
+                        <option value="REFUND" th:selected="${selectedPaymentStatusFilter == 'REFUND'}">환불</option>
+                    </select>
+                </div>
+
+                <!-- 결제유형 필터 -->
+                <div class="min-w-[140px]">
+                    <select name="paymentMethodType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="">결제유형 전체</option>
+                        <option value="PG" th:selected="${selectedPaymentMethodType == 'PG'}">PG결제</option>
+                        <option value="VIRTUAL" th:selected="${selectedPaymentMethodType == 'VIRTUAL'}">가상계좌</option>
+                    </select>
+                </div>
+
+                <!-- 검색 버튼 -->
+                <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    검색
+                </button>
+                <!-- 초기화: prodNo 또는 regionName 유지 -->
+                <a th:if="${selectedProdNo != null and selectedProdNo != 0}"
+                   th:href="@{/sync/tables-all(prodNo=${selectedProdNo})}"
+                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    초기화
+                </a>
+                <a th:if="${selectedRegionName != null and !selectedRegionName.isEmpty()}"
+                   th:href="@{/sync/tables-all(regionName=${selectedRegionName})}"
+                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    초기화
+                </a>
+                <a th:if="${(selectedProdNo == null or selectedProdNo == 0) and (selectedRegionName == null or selectedRegionName.isEmpty())}"
+                   th:href="@{/sync/tables-all}"
+                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    초기화
+                </a>
+            </form>
+        </div>
+
+        <!-- 매출 합계 (필터 조건 적용) -->
+        <div th:if="${salesTotal != null}" class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-lg font-semibold">매출 합계</span>
+                    <span class="text-sm opacity-75">(필터 조건 적용)</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <!-- 결제 완료 합계 -->
+                <div class="bg-white/20 rounded-lg p-3 text-center">
+                    <div class="text-white/80 text-sm">결제 완료</div>
+                    <div class="text-2xl font-bold text-white" th:text="${#numbers.formatDecimal(salesTotal.paidTotal, 0, 'COMMA', 0, 'POINT')} + '원'">0원</div>
+                </div>
+                <!-- 환불 완료 합계 -->
+                <div class="bg-white/20 rounded-lg p-3 text-center">
+                    <div class="text-white/80 text-sm">환불 완료</div>
+                    <div class="text-2xl font-bold text-white" th:text="${#numbers.formatDecimal(salesTotal.refundTotal, 0, 'COMMA', 0, 'POINT')} + '원'">0원</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 필드 설정 버튼 -->
+        <div class="bg-white rounded-lg shadow p-3 flex justify-end items-center">
+            <button type="button" onclick="openFieldSettingModal()" class="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                필드 설정
+            </button>
+        </div>
+
+        <!-- 전체 주문 리스트 -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h3 class="font-semibold text-gray-800">전체 주문 (<span th:text="${totalElements}">0</span>건)</h3>
+            </div>
+            <div class="table-container">
+                <table class="w-full" id="allOrdersTable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <!-- 체크박스 -->
+                            <th class="px-2 py-2 text-center w-8">
+                                <input type="checkbox" class="select-all-checkbox w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                       data-table="all" onchange="toggleAllCheckboxes(this, 'all')">
+                            </th>
+                            <!-- 기본 필드 -->
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="name">이름</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="birthYear">출생</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="phone">연락처</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="job">직업</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="profile">프로필</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="premium">프리미엄</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="status">상태</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase" data-field="genderAge">성별(나이)</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase" data-field="delete" style="width: 50px;">삭제</th>
+                            <!-- 추가 필드 (기본 숨김) -->
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="preferredDate">참석날짜</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="prodName">상품명</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase hidden" data-field="amount">금액</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="paymentMethod">결제수단</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="paymentMethodType">결제유형</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="orderTime">주문일시</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="orderStatus">주문상태</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="paymentStatus">결제상태</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="pgName">PG종류</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="region">지역명</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="orderNo">주문번호</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase hidden" data-field="totalPrice">총금액</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase hidden" data-field="itemPrice">상품단가</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase hidden" data-field="orderSectionStatus">주문섹션상태</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr th:each="orderView : ${orders}" th:data-id="${orderView.order.id}"
+                            th:data-can-send="${orderView.canSendAlimtalk}" th:data-alimtalk-sent="${orderView.order.alimtalkSent}"
+                            th:data-payment-status="${orderView.order.paymentStatus}" th:data-management-status="${orderView.order.managementStatus}"
+                            th:data-order-no="${orderView.order.orderNo}" th:data-birth-year="${orderView.ordererBirthYear}"
+                            class="hover:bg-gray-50">
+                            <!-- 체크박스 -->
+                            <td class="px-2 py-2 text-center">
+                                <input type="checkbox"
+                                       th:data-order-id="${orderView.order.id}"
+                                       th:disabled="${!orderView.canSendAlimtalk}"
+                                       onchange="updateSelectedCount()"
+                                       th:class="${orderView.canSendAlimtalk ? 'order-checkbox w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 cursor-pointer' : 'order-checkbox w-4 h-4 text-gray-300 border-gray-200 rounded cursor-not-allowed opacity-50'}">
+                            </td>
+                            <!-- 기본 필드 -->
+                            <td class="px-3 py-2 text-sm font-medium text-gray-900" data-field="name">
+                                <button type="button"
+                                        class="text-primary hover:text-blue-700 hover:underline cursor-pointer"
+                                        th:data-order-id="${orderView.order.id}"
+                                        th:data-orderer-name="${orderView.order.ordererName}"
+                                        th:data-opt-birth-year="${orderView.order.optBirthYear}"
+                                        th:data-opt-job="${orderView.order.optJob}"
+                                        th:data-orderer-call="${orderView.order.ordererCall}"
+                                        th:data-opt-profile="${orderView.order.optProfile}"
+                                        th:data-opt-premium="${orderView.order.optPremium}"
+                                        onclick="openEditModal(this)"
+                                        th:text="${orderView.order.ordererName}">-</button>
+                            </td>
+                            <td class="px-3 py-2 text-sm text-gray-600" data-field="birthYear" th:text="${orderView.ordererBirthYear != null ? #strings.substring(orderView.ordererBirthYear, 2, 4) : '-'}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600" data-field="phone" th:text="${orderView.order.ordererCall}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600" data-field="job" th:text="${orderView.order.optJob}">-</td>
+                            <td class="px-3 py-2 text-sm" data-field="profile">
+                                <a th:if="${orderView.order.optProfile != null and !orderView.order.optProfile.isEmpty()}"
+                                   th:href="${orderView.order.optProfile}" target="_blank"
+                                   class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    </svg>
+                                    링크
+                                </a>
+                                <span th:unless="${orderView.order.optProfile != null and !orderView.order.optProfile.isEmpty()}" class="text-gray-300">-</span>
+                            </td>
+                            <td class="px-3 py-2 text-sm" data-field="premium">
+                                <span th:if="${orderView.order.optPremium == '인증'}" class="text-yellow-600 font-semibold">인증</span>
+                                <span th:unless="${orderView.order.optPremium == '인증'}" class="text-gray-300">-</span>
+                            </td>
+                            <td class="px-3 py-2 text-sm" data-field="status">
+                                <span th:classappend="${orderView.order.managementStatus == '결제대기중' ? 'bg-orange-100 text-orange-800' :
+                                                       (orderView.order.managementStatus == '확인필요' ? 'bg-yellow-100 text-yellow-800' :
+                                                       (orderView.order.managementStatus == '확정' ? 'bg-green-100 text-green-800' :
+                                                       (orderView.order.managementStatus == '대기' ? 'bg-blue-100 text-blue-800' :
+                                                       (orderView.order.managementStatus == '이월' ? 'bg-purple-100 text-purple-800' :
+                                                       (orderView.order.managementStatus != null and orderView.order.managementStatus.startsWith('환불') ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500')))))}"
+                                        class="status-btn px-2 py-1 rounded text-xs font-medium cursor-default"
+                                        th:text="${orderView.order.managementStatus == '확정' and orderView.order.alimtalkSent ? '확정(발송완료)' : orderView.order.managementStatus}">-</span>
+                            </td>
+                            <td class="px-3 py-2 text-sm" data-field="genderAge" th:text="${orderView.genderWithAge}">-</td>
+                            <!-- 삭제 버튼 (수동 추가 주문만 표시: isManual() = true) -->
+                            <td class="px-3 py-2 text-center" data-field="delete">
+                                <button th:if="${orderView.order.isManual()}"
+                                        type="button"
+                                        th:data-order-id="${orderView.order.id}"
+                                        th:data-orderer-name="${orderView.order.ordererName}"
+                                        onclick="confirmDeleteOrder(this)"
+                                        class="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                                        title="삭제">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </td>
+                            <!-- 추가 필드 (기본 숨김) -->
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="preferredDate" th:text="${orderView.order.optPreferredDate}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 max-w-[150px] truncate hidden" data-field="prodName" th:title="${orderView.order.prodName}" th:text="${orderView.order.prodName}">-</td>
+                            <td class="px-3 py-2 text-sm text-right font-medium text-gray-900 hidden" data-field="amount" th:text="${#numbers.formatInteger(orderView.order.paidPrice, 0, 'COMMA')}">0</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="paymentMethod" th:text="${orderView.order.paymentMethod}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="paymentMethodType" th:data-payment-method="${orderView.order.paymentMethod}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-500 hidden" data-field="orderTime" th:text="${orderView.order.orderTime != null ? #temporals.format(orderView.order.orderTime, 'MM-dd HH:mm') : '-'}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="orderStatus" th:text="${orderView.order.orderStatus}">-</td>
+                            <td class="px-3 py-2 text-sm hidden" data-field="paymentStatus">
+                                <span th:class="${orderView.order.paymentStatus == 'PAYMENT_COMPLETE' ? 'text-green-600' :
+                                    (orderView.order.paymentStatus != null and orderView.order.paymentStatus.startsWith('REFUND') ? 'text-red-600' : 'text-gray-500')}"
+                                   th:text="${orderView.order.paymentStatus == 'PAYMENT_COMPLETE' ? '완료' :
+                                    (orderView.order.paymentStatus == 'PAYMENT_PENDING' ? '대기' :
+                                    (orderView.order.paymentStatus != null and orderView.order.paymentStatus.startsWith('REFUND') ? '환불' : '-'))}">-</span>
+                            </td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="pgName" th:text="${orderView.order.pgName}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="region" th:text="${orderView.order.regionName}">-</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="orderNo" th:text="${orderView.order.orderNo}">-</td>
+                            <td class="px-3 py-2 text-sm text-right text-gray-600 hidden" data-field="totalPrice" th:text="${#numbers.formatInteger(orderView.order.totalPrice, 0, 'COMMA')}">0</td>
+                            <td class="px-3 py-2 text-sm text-right text-gray-600 hidden" data-field="itemPrice" th:text="${#numbers.formatInteger(orderView.order.itemPrice, 0, 'COMMA')}">0</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 hidden" data-field="orderSectionStatus" th:text="${orderView.order.orderSectionStatus}">-</td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(orders)}">
+                            <td colspan="23" class="px-4 py-8 text-center text-gray-500">주문 데이터가 없습니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div class="flex justify-between items-center bg-white rounded-lg shadow px-4 py-3" th:if="${totalPages > 1}">
+            <div class="text-sm text-gray-600">
+                총 <span th:text="${totalElements}">0</span>건
+            </div>
+            <nav class="flex space-x-1">
+                <a th:if="${currentPage > 1}"
+                   th:href="@{/sync/tables-all(page=${currentPage - 1}, keyword=${selectedKeyword}, startDate=${selectedStartDate}, endDate=${selectedEndDate}, paymentStatusFilter=${selectedPaymentStatusFilter}, paymentMethodType=${selectedPaymentMethodType})}"
+                   class="px-3 py-1 rounded border border-gray-300 text-sm hover:bg-gray-50">이전</a>
+                <span th:each="i : ${#numbers.sequence(1, totalPages)}"
+                      th:if="${i <= 5 || i > totalPages - 5 || (i >= currentPage - 2 && i <= currentPage + 2)}">
+                    <a th:href="@{/sync/tables-all(page=${i}, keyword=${selectedKeyword}, startDate=${selectedStartDate}, endDate=${selectedEndDate}, paymentStatusFilter=${selectedPaymentStatusFilter}, paymentMethodType=${selectedPaymentMethodType})}"
+                       th:text="${i}"
+                       th:class="${i == currentPage ? 'px-3 py-1 rounded bg-primary text-white text-sm' : 'px-3 py-1 rounded border border-gray-300 text-sm hover:bg-gray-50'}">1</a>
+                </span>
+                <a th:if="${currentPage < totalPages}"
+                   th:href="@{/sync/tables-all(page=${currentPage + 1}, keyword=${selectedKeyword}, startDate=${selectedStartDate}, endDate=${selectedEndDate}, paymentStatusFilter=${selectedPaymentStatusFilter}, paymentMethodType=${selectedPaymentMethodType})}"
+                   class="px-3 py-1 rounded border border-gray-300 text-sm hover:bg-gray-50">다음</a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 관리상태 변경 모달 -->
+    <div id="statusModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeStatusModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b flex-shrink-0">
+                    <h3 class="text-lg font-semibold text-gray-900">관리상태 변경</h3>
+                    <button onclick="closeStatusModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4">
+                    <div class="bg-gray-50 rounded-lg p-3 mb-4">
+                        <div class="grid grid-cols-1 gap-2 text-sm">
+                            <div class="flex items-center">
+                                <span class="text-gray-500 w-16">이름:</span>
+                                <span id="modalOrdererName" class="font-medium text-gray-900">-</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-gray-500 w-16">연락처:</span>
+                                <span id="modalOrdererCall" class="text-gray-700">-</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-gray-500 w-16">상품:</span>
+                                <span id="modalProdName" class="text-gray-700 truncate">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <span class="text-sm text-gray-500">현재 상태:</span>
+                        <span id="currentStatusLabel" class="ml-2 px-2 py-1 rounded text-sm font-medium">-</span>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-700 mb-2">변경할 상태:</label>
+                        <select id="statusSelect" onchange="onStatusSelectChange()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                            <option value="">상태 선택</option>
+                        </select>
+                    </div>
+                    <div id="carryoverRoundDiv" class="hidden mb-4">
+                        <label class="block text-sm text-gray-700 mb-2">참여희망날짜 변경:</label>
+                        <select id="carryoverRoundSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                            <option value="">날짜 선택</option>
+                            <!-- 상품 옵션 API에서 로드 -->
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">이월 시 변경할 참여희망날짜를 선택하세요</p>
+                    </div>
+                    <div id="statusChangeError" class="hidden text-sm text-red-500 mb-3"></div>
+                    <div id="statusChangeLoading" class="hidden flex items-center justify-center py-2">
+                        <svg class="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="ml-2 text-gray-600">변경 중...</span>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 p-4 border-t flex-shrink-0">
+                    <button type="button" onclick="closeStatusModal()" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">
+                        취소
+                    </button>
+                    <button type="button" id="applyStatusBtn" onclick="applyStatusChange()" disabled class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        적용
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 필드 설정 모달 -->
+    <div id="fieldSettingModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeFieldSettingModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">필드 설정</h3>
+                    <button onclick="closeFieldSettingModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <p class="text-sm text-gray-500 mb-3">표시할 필드를 선택하세요</p>
+                    <div class="space-y-2 max-h-80 overflow-y-auto">
+                        <!-- 기본 필드 (항상 표시) -->
+                        <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">기본 필드</div>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" value="name" checked disabled class="mr-2 opacity-50">
+                            <span class="text-sm text-gray-500">이름 (항상 표시)</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="birthYear" checked>
+                            <span class="text-sm">출생년도</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="phone" checked>
+                            <span class="text-sm">연락처</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="job" checked>
+                            <span class="text-sm">직업</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="profile" checked>
+                            <span class="text-sm">프로필</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="premium" checked>
+                            <span class="text-sm">프리미엄</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="status" checked>
+                            <span class="text-sm">상태</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="genderAge" checked>
+                            <span class="text-sm">성별(나이)</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="delete" checked>
+                            <span class="text-sm">삭제 (수동추가만)</span>
+                        </label>
+                        <!-- 추가 필드 -->
+                        <div class="text-xs text-gray-400 uppercase tracking-wide mt-3 mb-1">추가 필드</div>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="preferredDate">
+                            <span class="text-sm">참석날짜</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="prodName">
+                            <span class="text-sm">상품명</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="amount">
+                            <span class="text-sm">금액</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="paymentMethod">
+                            <span class="text-sm">결제수단</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="paymentMethodType">
+                            <span class="text-sm">결제유형</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="orderTime">
+                            <span class="text-sm">주문일시</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="orderStatus">
+                            <span class="text-sm">주문상태</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="paymentStatus">
+                            <span class="text-sm">결제상태</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="pgName">
+                            <span class="text-sm">PG종류</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="region">
+                            <span class="text-sm">지역명</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="orderNo">
+                            <span class="text-sm">주문번호</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="totalPrice">
+                            <span class="text-sm">총금액</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="itemPrice">
+                            <span class="text-sm">상품단가</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-50">
+                            <input type="checkbox" class="field-checkbox mr-2" value="orderSectionStatus">
+                            <span class="text-sm">주문섹션상태</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex justify-between p-4 border-t">
+                    <button type="button" onclick="resetFieldSettings()" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">
+                        기본값 복원
+                    </button>
+                    <div class="space-x-2">
+                        <button type="button" onclick="closeFieldSettingModal()" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">
+                            취소
+                        </button>
+                        <button type="button" onclick="applyFieldSettings()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm">
+                            적용
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 주문자 정보 편집 모달 -->
+    <div id="editModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeEditModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">주문자 정보 수정</h3>
+                    <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="editForm" onsubmit="submitEditForm(event)" class="p-4">
+                    <input type="hidden" id="editOrderId">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">이름</label>
+                            <input type="text" id="editOrdererName"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">출생년도</label>
+                            <input type="text" id="editOptBirthYear" maxlength="4" placeholder="예: 1990"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <p class="mt-1 text-xs text-gray-500">4자리 숫자 (예: 1990)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">직업</label>
+                            <input type="text" id="editOptJob"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+                            <input type="text" id="editOrdererCall"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">프로필 URL</label>
+                            <input type="url" id="editOptProfile" placeholder="https://..."
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <p class="mt-1 text-xs text-gray-500">http:// 또는 https://로 시작하는 링크</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">프리미엄 인증</label>
+                            <select id="editOptPremium"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="">미인증</option>
+                                <option value="인증">인증</option>
+                            </select>
+                        </div>
+                        <!-- 상태 변경 이력 -->
+                        <div id="editStatusHistorySection" class="mt-4 pt-4 border-t border-gray-200">
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-sm text-gray-700 font-medium">상태 변경 이력</label>
+                                <span id="editHistoryCount" class="text-xs text-gray-400"></span>
+                            </div>
+                            <div id="editStatusHistoryList" class="max-h-32 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50">
+                                <div class="p-2 text-center text-xs text-gray-400">이력 없음</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button type="button" onclick="closeEditModal()"
+                                class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
+                            취소
+                        </button>
+                        <button type="submit" id="editSubmitBtn"
+                                class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700">
+                            적용
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 새참가자 등록 모달 -->
+    <div id="createOrderModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeCreateOrderModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto">
+                <div class="flex items-center justify-between p-4 border-b bg-purple-50">
+                    <h3 class="text-lg font-semibold text-purple-900">
+                        <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        새참가자 등록
+                    </h3>
+                    <button onclick="closeCreateOrderModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="createOrderForm" onsubmit="submitCreateOrderForm(event)" class="p-4">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">이름 <span class="text-red-500">*</span></label>
+                            <input type="text" id="createOrderName" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="홍길동">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">성별 <span class="text-red-500">*</span></label>
+                            <div class="flex gap-4">
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="createOrderGender" value="남" required
+                                           class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                    <span class="ml-2 text-sm text-gray-700">남</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="createOrderGender" value="여" required
+                                           class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                    <span class="ml-2 text-sm text-gray-700">여</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">전화번호 <span class="text-red-500">*</span></label>
+                            <input type="text" id="createOrderPhone" required maxlength="11"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="01012345678" pattern="01[0-9]{8,9}">
+                            <p class="mt-1 text-xs text-gray-500">- 없이 숫자만 입력 (예: 01012345678)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">출생년도 <span class="text-red-500">*</span></label>
+                            <input type="text" id="createOrderBirthYear" required maxlength="4"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="1990" pattern="(19|20)[0-9]{2}">
+                            <p class="mt-1 text-xs text-gray-500">4자리 숫자 (예: 1990)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">직업</label>
+                            <input type="text" id="createOrderJob"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="예: 회사원, 자영업, 프리랜서">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">상품 <span class="text-red-500">*</span></label>
+                            <select id="createOrderProdNo" required onchange="onCreateOrderProdNoChange()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="">상품 선택</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">현재 지역의 상품 중 선택</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">참석날짜 <span class="text-red-500">*</span></label>
+                            <select id="createOrderPreferredDate" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="">날짜 선택</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button type="button" onclick="closeCreateOrderModal()"
+                                class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
+                            취소
+                        </button>
+                        <button type="submit" id="createOrderSubmitBtn"
+                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                            주문 생성
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</main>
+
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+        // ========== 토스트 알림 함수 ==========
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            // 아이콘 설정
+            const icons = {
+                success: '<svg class="toast-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                error: '<svg class="toast-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                warning: '<svg class="toast-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
+                info: '<svg class="toast-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+            };
+
+            toast.innerHTML = `
+                ${icons[type] || icons.info}
+                <span class="toast-message">${message}</span>
+                <span class="toast-close" onclick="this.parentElement.remove()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </span>
+            `;
+
+            container.appendChild(toast);
+
+            // 자동 제거
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // 통계 데이터
+        const stats = /*[[${stats}]]*/ {maleConfirmed: 0, femaleConfirmed: 0};
+        const selectedProdNo = /*[[${selectedProdNo}]]*/ null;
+        const selectedRegionName = /*[[${selectedRegionName}]]*/ '';
+        const selectedPreferredDate = /*[[${selectedPreferredDate}]]*/ '';
+        let currentOrderId = null;
+        let currentOrderPreferredDate = null;  // 현재 주문의 참여희망날짜
+
+        // 기본 필드 설정
+        const DEFAULT_FIELDS = ['name', 'birthYear', 'phone', 'job', 'profile', 'premium', 'status', 'genderAge', 'delete'];
+        const STORAGE_KEY = 'orderTableFields';
+        const PRODUCT_OPTIONS_KEY = 'productOptions';
+
+        // 결제수단 유형 매핑 (DB 없이 프론트에서 변환)
+        const PAYMENT_METHOD_TYPE_MAP = {
+            'CARD': 'PG결제',
+            'KAKAOPAY': 'PG결제',
+            'VIRTUAL': '가상계좌',
+            'BANKTRANSFER': '가상계좌'
+        };
+
+        // 결제유형 변환 함수
+        function convertPaymentMethodTypes() {
+            document.querySelectorAll('td[data-field="paymentMethodType"]').forEach(cell => {
+                const paymentMethod = cell.getAttribute('data-payment-method');
+                const typeText = paymentMethod ? (PAYMENT_METHOD_TYPE_MAP[paymentMethod] || '-') : '-';
+                cell.textContent = typeText;
+            });
+        }
+
+        // 페이지 로드 시 진행바 업데이트 및 필드 설정 로드
+        document.addEventListener('DOMContentLoaded', function() {
+            // 지역별 페이지인 경우에만 진행바 업데이트
+            if (selectedRegionName) {
+                updateProgressBar('male');
+                updateProgressBar('female');
+            }
+            loadFieldSettings();
+            loadProductOptions();  // 상품 옵션 로드
+            convertPaymentMethodTypes();  // 결제유형 변환
+        });
+
+        // 상품 옵션 API 호출 및 localStorage 저장
+        // 지역명이 있으면 지역 기반 API 사용, 아니면 상품코드 기반 API 사용
+        async function loadProductOptions() {
+            // 지역명 또는 상품코드가 있어야 함
+            if (!selectedRegionName && !selectedProdNo) return;
+
+            try {
+                let apiUrl;
+                let cacheKey;
+
+                if (selectedRegionName) {
+                    // 지역명 기반 API 호출 (지역 내 모든 상품의 날짜 옵션 합산)
+                    apiUrl = `/api/sync/region-options/${encodeURIComponent(selectedRegionName)}`;
+                    cacheKey = `region_${selectedRegionName}`;
+                } else {
+                    // 상품코드 기반 API 호출 (기존 방식)
+                    apiUrl = `/api/sync/product-options/${selectedProdNo}`;
+                    cacheKey = `prodNo_${selectedProdNo}`;
+                }
+
+                const response = await fetch(apiUrl);
+                const result = await response.json();
+
+                if (result.success && result.preferredDates) {
+                    // localStorage에 저장 (캐시)
+                    const cacheData = {
+                        key: cacheKey,
+                        preferredDates: result.preferredDates,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(PRODUCT_OPTIONS_KEY, JSON.stringify(cacheData));
+
+                    // 필터 select 업데이트
+                    updatePreferredDateFilter(result.preferredDates);
+                }
+            } catch (e) {
+                console.error('상품 옵션 로드 실패:', e);
+                // 캐시된 데이터 사용 시도
+                const cacheLoaded = loadCachedProductOptions();
+                if (!cacheLoaded) {
+                    // 캐시도 없으면 사용자에게 안내
+                    const select = document.getElementById('preferredDateSelect');
+                    if (select) {
+                        select.innerHTML = '<option value="">날짜 로드 실패</option>';
+                    }
+                }
+            }
+        }
+
+        // 캐시된 상품 옵션 로드 (성공 여부 반환)
+        function loadCachedProductOptions() {
+            const cached = localStorage.getItem(PRODUCT_OPTIONS_KEY);
+            if (cached) {
+                try {
+                    const data = JSON.parse(cached);
+                    const expectedKey = selectedRegionName
+                        ? `region_${selectedRegionName}`
+                        : `prodNo_${selectedProdNo}`;
+                    if (data.key === expectedKey && data.preferredDates) {
+                        updatePreferredDateFilter(data.preferredDates);
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('캐시 파싱 실패:', e);
+                }
+            }
+            return false;
+        }
+
+        /**
+         * 날짜 문자열에서 월/일 추출 후 오늘 날짜와의 근접도로 정렬
+         * - 1월/12월 연도 전환 처리 (오늘이 1월이면 12월은 작년, 오늘이 12월이면 1월은 다음해)
+         * - 오늘과 가까운 날짜가 위로 (절대값 정렬)
+         */
+        function sortPreferredDatesByProximity(dates) {
+            if (!dates || dates.length === 0) return dates;
+
+            // 오늘 날짜 (시간 제거, 자정 기준)
+            const now = new Date();
+            const todayYear = now.getFullYear();
+            const todayMonth = now.getMonth() + 1;  // 1-12
+            const today = new Date(todayYear, now.getMonth(), now.getDate());  // 자정으로 정규화
+
+            // 문자열에서 월/일 추출 정규식 (예: "12월31일", "1월2일", "12월 31일")
+            // \s* : 월과 일 사이 공백 허용
+            const monthDayPattern = /(\d+)\s*월\s*(\d+)\s*일/;
+
+            // 날짜 문자열을 파싱하여 오늘과의 차이(일수) 계산
+            function getDaysDiff(dateStr) {
+                const match = monthDayPattern.exec(dateStr);
+                if (!match) return 9999;  // 파싱 실패 시 맨 뒤로
+
+                const month = parseInt(match[1], 10);
+                const day = parseInt(match[2], 10);
+
+                // 먼저 올해 날짜로 계산
+                let targetDate = new Date(todayYear, month - 1, day);
+                let diffTime = targetDate.getTime() - today.getTime();
+                let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                // 90일 이상 과거 → 내년으로 간주 (예: 12월 31일 기준 8월은 내년 8월)
+                if (diffDays < -90) {
+                    targetDate = new Date(todayYear + 1, month - 1, day);
+                    diffTime = targetDate.getTime() - today.getTime();
+                    diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                }
+                // 270일 이상 미래 → 작년으로 간주 (예: 1월 초 기준 11월은 작년 11월)
+                else if (diffDays > 270) {
+                    targetDate = new Date(todayYear - 1, month - 1, day);
+                    diffTime = targetDate.getTime() - today.getTime();
+                    diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                }
+
+                // 과거 날짜(오늘 이전)는 +1000일 패널티
+                if (diffDays < 0) {
+                    return Math.abs(diffDays) + 1000;
+                }
+                return diffDays;
+            }
+
+            // 정렬 (오늘 기준 가까운 미래 우선, 과거는 하위)
+            return [...dates].sort((a, b) => {
+                const diffA = getDaysDiff(a);
+                const diffB = getDaysDiff(b);
+                return diffA - diffB;
+            });
+        }
+
+        // 참석날짜 필터 select 업데이트
+        function updatePreferredDateFilter(dates) {
+            const select = document.getElementById('preferredDateSelect');
+            if (!select || !dates || dates.length === 0) return;
+
+            // 현재 선택값 저장
+            const currentValue = selectedPreferredDate || '';
+
+            // 오늘 날짜 기준 근접도 정렬
+            const sortedDates = sortPreferredDatesByProximity(dates);
+
+            // 옵션 재생성
+            select.innerHTML = '<option value="">날짜선택</option>';
+            sortedDates.forEach(date => {
+                const option = document.createElement('option');
+                option.value = date;
+                option.textContent = date;
+                if (date === currentValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+
+        // 이월 상태 선택 시 참여희망날짜 select 채우기
+        function loadPreferredDatesForCarryover() {
+            const select = document.getElementById('carryoverRoundSelect');
+            select.innerHTML = '<option value="">날짜 선택</option>';
+
+            // 현재 주문의 참여희망날짜와 다른 옵션들만 표시
+            const cached = localStorage.getItem(PRODUCT_OPTIONS_KEY);
+            if (cached) {
+                try {
+                    const data = JSON.parse(cached);
+                    if (data.preferredDates) {
+                        // 오늘 날짜 기준 근접도 정렬
+                        const sortedDates = sortPreferredDatesByProximity(data.preferredDates);
+                        sortedDates.forEach(date => {
+                            const option = document.createElement('option');
+                            option.value = date;
+                            option.textContent = date;
+                            // 현재 주문의 날짜와 같으면 표시 안함
+                            if (currentOrderPreferredDate && date === currentOrderPreferredDate) {
+                                option.disabled = true;
+                                option.textContent = `${date} (현재)`;
+                            }
+                            select.appendChild(option);
+                        });
+                    }
+                } catch (e) {
+                    console.error('캐시 파싱 실패:', e);
+                }
+            }
+        }
+
+        // 필드 설정 로드
+        function loadFieldSettings() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            const fields = saved ? JSON.parse(saved) : DEFAULT_FIELDS;
+            applyFieldVisibility(fields);
+        }
+
+        // 필드 표시/숨김 적용
+        function applyFieldVisibility(fields) {
+            // 항상 name은 표시
+            const visibleFields = fields.includes('name') ? fields : ['name', ...fields];
+
+            // 전체주문 테이블에 적용
+            const table = document.getElementById('allOrdersTable');
+            if (!table) return;
+
+            // 헤더 처리
+            const headers = table.querySelectorAll('thead th[data-field]');
+            headers.forEach(th => {
+                const field = th.dataset.field;
+                if (visibleFields.includes(field)) {
+                    th.classList.remove('hidden');
+                } else {
+                    th.classList.add('hidden');
+                }
+            });
+
+            // 데이터 셀 처리
+            const rows = table.querySelectorAll('tbody tr[data-id]');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td[data-field]');
+                cells.forEach(td => {
+                    const field = td.dataset.field;
+                    if (visibleFields.includes(field)) {
+                        td.classList.remove('hidden');
+                    } else {
+                        td.classList.add('hidden');
+                    }
+                });
+            });
+        }
+
+        // 필드 설정 모달 열기
+        function openFieldSettingModal() {
+            const modal = document.getElementById('fieldSettingModal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+            // 현재 저장된 설정 로드
+            const saved = localStorage.getItem(STORAGE_KEY);
+            const fields = saved ? JSON.parse(saved) : DEFAULT_FIELDS;
+
+            // 체크박스 상태 설정
+            const checkboxes = document.querySelectorAll('.field-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = fields.includes(cb.value);
+            });
+        }
+
+        // 필드 설정 모달 닫기
+        function closeFieldSettingModal() {
+            document.getElementById('fieldSettingModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // 필드 설정 적용
+        function applyFieldSettings() {
+            const checkboxes = document.querySelectorAll('.field-checkbox:checked');
+            const fields = ['name']; // name은 항상 포함
+            checkboxes.forEach(cb => {
+                if (!fields.includes(cb.value)) {
+                    fields.push(cb.value);
+                }
+            });
+
+            // 로컬 스토리지에 저장
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(fields));
+
+            // 테이블에 적용
+            applyFieldVisibility(fields);
+
+            // 모달 닫기
+            closeFieldSettingModal();
+        }
+
+        // 기본값 복원
+        function resetFieldSettings() {
+            // 체크박스 상태 초기화
+            const checkboxes = document.querySelectorAll('.field-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = DEFAULT_FIELDS.includes(cb.value);
+            });
+        }
+
+        // 정원 진행바 업데이트 (지역별 페이지에서만 사용)
+        function updateProgressBar(gender) {
+            const capacityInput = document.getElementById(gender + 'Capacity');
+            const progressBar = document.getElementById(gender + 'ProgressBar');
+            const percentageSpan = document.getElementById(gender + 'Percentage');
+
+            if (!capacityInput || !progressBar || !percentageSpan) return;
+
+            const capacity = parseInt(capacityInput.value) || 0;
+            const confirmed = gender === 'male' ? stats.maleConfirmed : stats.femaleConfirmed;
+
+            let percentage = 0;
+            if (capacity > 0) {
+                percentage = Math.min(Math.round((confirmed / capacity) * 100), 100);
+            }
+
+            progressBar.style.width = percentage + '%';
+            percentageSpan.textContent = percentage;
+
+            // 색상 변경
+            if (percentage >= 100) {
+                progressBar.classList.remove('bg-blue-500', 'bg-pink-500', 'bg-yellow-500');
+                progressBar.classList.add('bg-green-500');
+            } else if (percentage >= 80) {
+                progressBar.classList.remove('bg-blue-500', 'bg-pink-500', 'bg-green-500');
+                progressBar.classList.add('bg-yellow-500');
+            } else {
+                progressBar.classList.remove('bg-yellow-500', 'bg-green-500');
+                progressBar.classList.add(gender === 'male' ? 'bg-blue-500' : 'bg-pink-500');
+            }
+        }
+
+        // 관리상태 모달 열기
+        async function openStatusModal(button) {
+            currentOrderId = button.dataset.orderId;
+
+            const modal = document.getElementById('statusModal');
+            const errorDiv = document.getElementById('statusChangeError');
+            const loadingDiv = document.getElementById('statusChangeLoading');
+
+            errorDiv.classList.add('hidden');
+            loadingDiv.classList.add('hidden');
+            resetModalForm();
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+            try {
+                const response = await fetch(`/api/sync/orders/${currentOrderId}/detail`);
+                const result = await response.json();
+
+                if (result.success) {
+                    populateModalData(result);
+                } else {
+                    errorDiv.textContent = result.message;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (e) {
+                errorDiv.textContent = '정보 조회 실패';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function resetModalForm() {
+            document.getElementById('modalOrdererName').textContent = '-';
+            document.getElementById('modalOrdererCall').textContent = '-';
+            document.getElementById('modalProdName').textContent = '-';
+            document.getElementById('currentStatusLabel').textContent = '-';
+            document.getElementById('statusSelect').innerHTML = '<option value="">로딩 중...</option>';
+            document.getElementById('carryoverRoundDiv').classList.add('hidden');
+            document.getElementById('carryoverRoundSelect').value = '';
+            document.getElementById('applyStatusBtn').disabled = true;
+        }
+
+        function populateModalData(data) {
+            const order = data.order;
+            const availableStatuses = data.availableStatuses;
+
+            document.getElementById('modalOrdererName').textContent = order.ordererName || '-';
+            document.getElementById('modalOrdererCall').textContent = order.ordererCall || '-';
+            document.getElementById('modalProdName').textContent = order.prodName || '-';
+
+            // 현재 주문의 참여희망날짜 저장
+            currentOrderPreferredDate = order.optPreferredDate || null;
+
+            const currentStatus = order.managementStatus || '-';
+            const currentLabel = document.getElementById('currentStatusLabel');
+            currentLabel.textContent = currentStatus;
+            currentLabel.className = 'ml-2 px-2 py-1 rounded text-sm font-medium ' + getStatusColorClass(currentStatus);
+
+            const statusSelect = document.getElementById('statusSelect');
+            statusSelect.innerHTML = '<option value="">상태 선택</option>';
+            availableStatuses.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.value;
+                option.textContent = s.label;
+                statusSelect.appendChild(option);
+            });
+        }
+
+        // 상태 변경 이력 렌더링 (범용)
+        // listId: 이력 목록 element ID, countId: 이력 건수 element ID (optional)
+        function renderStatusHistory(history, listId = 'editStatusHistoryList', countId = 'editHistoryCount') {
+            const historyList = document.getElementById(listId);
+            const historyCount = countId ? document.getElementById(countId) : null;
+
+            if (!historyList) return;
+
+            if (!history || history.length === 0) {
+                historyList.innerHTML = '<div class="p-2 text-center text-xs text-gray-400">이력 없음</div>';
+                if (historyCount) historyCount.textContent = '';
+                return;
+            }
+
+            if (historyCount) historyCount.textContent = `최근 ${history.length}건`;
+
+            let html = '<div class="divide-y divide-gray-200">';
+            history.forEach((h, idx) => {
+                const prevStatus = h.previousStatus || '(없음)';
+                const newStatus = h.newStatus;
+                const displayNew = newStatus === '이월' && h.carryoverRound ? `이월(${h.carryoverRound}회차)` : newStatus;
+                const changedAt = h.changedAt ? formatDateTime(h.changedAt) : '-';
+
+                html += `
+                    <div class="px-2 py-1.5 flex items-center justify-between text-xs ${idx === 0 ? 'bg-blue-50' : ''}">
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-500">${prevStatus}</span>
+                            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                            <span class="font-medium ${getStatusTextClass(newStatus)}">${displayNew}</span>
+                        </div>
+                        <span class="text-gray-400">${changedAt}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            historyList.innerHTML = html;
+        }
+
+        function formatDateTime(dateTimeStr) {
+            if (!dateTimeStr) return '-';
+            try {
+                const dt = new Date(dateTimeStr);
+                const month = String(dt.getMonth() + 1).padStart(2, '0');
+                const day = String(dt.getDate()).padStart(2, '0');
+                const hour = String(dt.getHours()).padStart(2, '0');
+                const min = String(dt.getMinutes()).padStart(2, '0');
+                return `${month}-${day} ${hour}:${min}`;
+            } catch (e) {
+                return '-';
+            }
+        }
+
+        function getStatusTextClass(status) {
+            if (!status) return 'text-gray-500';
+            if (status === '확정') return 'text-green-700';
+            if (status === '대기') return 'text-blue-700';
+            if (status === '이월') return 'text-purple-700';
+            if (status === '확인필요') return 'text-yellow-700';
+            if (status === '결제대기중') return 'text-orange-700';
+            if (status.startsWith('환불')) return 'text-red-700';
+            return 'text-gray-700';
+        }
+
+        function onStatusSelectChange() {
+            const status = document.getElementById('statusSelect').value;
+            const carryoverDiv = document.getElementById('carryoverRoundDiv');
+            const applyBtn = document.getElementById('applyStatusBtn');
+
+            if (status === '이월') {
+                // 참여희망날짜 목록 로드
+                loadPreferredDatesForCarryover();
+                carryoverDiv.classList.remove('hidden');
+                const selectedDate = document.getElementById('carryoverRoundSelect').value;
+                applyBtn.disabled = !selectedDate;
+            } else {
+                carryoverDiv.classList.add('hidden');
+                applyBtn.disabled = !status;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('carryoverRoundSelect').addEventListener('change', function() {
+                const status = document.getElementById('statusSelect').value;
+                if (status === '이월') {
+                    document.getElementById('applyStatusBtn').disabled = !this.value;
+                }
+            });
+        });
+
+        async function applyStatusChange() {
+            const status = document.getElementById('statusSelect').value;
+            if (!status) return;
+
+            const newPreferredDate = status === '이월'
+                ? document.getElementById('carryoverRoundSelect').value
+                : null;
+
+            if (status === '이월' && !newPreferredDate) {
+                document.getElementById('statusChangeError').textContent = '참여희망날짜를 선택해주세요.';
+                document.getElementById('statusChangeError').classList.remove('hidden');
+                return;
+            }
+
+            const errorDiv = document.getElementById('statusChangeError');
+            const loadingDiv = document.getElementById('statusChangeLoading');
+            const applyBtn = document.getElementById('applyStatusBtn');
+
+            errorDiv.classList.add('hidden');
+            loadingDiv.classList.remove('hidden');
+            applyBtn.disabled = true;
+
+            try {
+                // 1. 관리상태 변경
+                const statusResponse = await fetch(`/api/sync/orders/${currentOrderId}/change-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status, carryoverRound: null })
+                });
+
+                const statusResult = await statusResponse.json();
+
+                if (!statusResult.success) {
+                    throw new Error(statusResult.message || '상태 변경 실패');
+                }
+
+                // 2. 이월 시 참여희망날짜도 업데이트
+                if (status === '이월' && newPreferredDate) {
+                    const dateResponse = await fetch(`/api/sync/orders/${currentOrderId}/preferred-date`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ preferredDate: newPreferredDate })
+                    });
+
+                    const dateResult = await dateResponse.json();
+
+                    if (!dateResult.success) {
+                        console.warn('참여희망날짜 변경 실패:', dateResult.message);
+                    }
+                }
+
+                // 3. 동일 필터조건으로 페이지 새로고침 (이월 시)
+                if (status === '이월') {
+                    window.location.reload();
+                } else {
+                    updateTableRow(currentOrderId, statusResult.newStatus, null);
+                    closeStatusModal();
+                }
+            } catch (e) {
+                loadingDiv.classList.add('hidden');
+                applyBtn.disabled = false;
+                errorDiv.textContent = e.message || '상태 변경 중 오류가 발생했습니다.';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function updateTableRow(orderId, newStatus, carryoverRound) {
+            const row = document.querySelector(`tr[data-id="${orderId}"]`);
+            if (!row) return;
+
+            // 관리상태 데이터 속성 업데이트 (정렬에 사용)
+            row.dataset.managementStatus = newStatus;
+
+            const statusBtn = row.querySelector('.status-btn');
+            if (statusBtn) {
+                let displayText = newStatus;
+                if (newStatus === '이월' && carryoverRound) {
+                    displayText = `이월(${carryoverRound}회차)`;
+                }
+                statusBtn.textContent = displayText;
+                statusBtn.dataset.currentStatus = newStatus;
+                statusBtn.className = 'status-btn px-2 py-1 rounded text-xs font-medium ' + getStatusColorClass(newStatus);
+            }
+
+            // 체크박스 상태 업데이트 (확정 상태 + 알림톡 미발송인 경우 활성화)
+            const checkbox = row.querySelector('.order-checkbox');
+            const alimtalkSent = row.dataset.alimtalkSent === 'true';
+
+            if (checkbox) {
+                if (newStatus === '확정' && !alimtalkSent) {
+                    // 확정 상태이고 알림톡 미발송이면 체크박스 활성화
+                    checkbox.disabled = false;
+                    checkbox.className = 'order-checkbox w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 cursor-pointer';
+                    row.dataset.canSend = 'true';
+                } else {
+                    // 그 외 상태는 체크박스 비활성화
+                    checkbox.disabled = true;
+                    checkbox.checked = false;
+                    checkbox.className = 'order-checkbox w-4 h-4 text-gray-300 border-gray-200 rounded cursor-not-allowed opacity-50';
+                    row.dataset.canSend = 'false';
+                }
+            }
+
+            // 선택 건수 업데이트
+            updateSelectedCount();
+
+            // 정렬 재적용 (preferredDate 필터가 있을 때만)
+            if (selectedPreferredDate) {
+                sortAllTables();
+            }
+        }
+
+        function getStatusColorClass(status) {
+            if (!status) return 'bg-gray-100 text-gray-500';
+            if (status === '결제대기중') return 'bg-orange-100 text-orange-800';
+            if (status === '확인필요') return 'bg-yellow-100 text-yellow-800';
+            if (status === '확정') return 'bg-green-100 text-green-800';
+            if (status === '대기') return 'bg-blue-100 text-blue-800';
+            if (status === '이월') return 'bg-purple-100 text-purple-800';
+            if (status === '불참') return 'bg-gray-100 text-gray-800';
+            if (status.startsWith('환불')) return 'bg-red-100 text-red-800';
+            return 'bg-gray-100 text-gray-500';
+        }
+
+        function closeStatusModal() {
+            document.getElementById('statusModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            currentOrderId = null;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeStatusModal();
+            }
+        });
+
+        // ========== 알림톡 일괄 발송 관련 ==========
+
+        // 전체 선택 토글 (발송 가능한 항목만 선택)
+        function toggleAllCheckboxes(selectAllCheckbox, tableType) {
+            const tableId = tableType === 'male' ? 'maleTable' : 'femaleTable';
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            // 발송 가능한 체크박스만 선택
+            const checkboxes = table.querySelectorAll('.order-checkbox:not(:disabled)');
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+
+            updateSelectedCount();
+        }
+
+        // 선택된 항목 수 업데이트
+        function updateSelectedCount() {
+            const checkedCount = document.querySelectorAll('.order-checkbox:checked').length;
+            document.getElementById('selectedCount').textContent = checkedCount;
+
+            // 버튼 활성화/비활성화
+            const batchBtn = document.getElementById('batchSendBtn');
+            batchBtn.disabled = checkedCount === 0;
+        }
+
+        // 선택된 주문 ID 목록 가져오기
+        function getSelectedOrderIds() {
+            const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+            return Array.from(checkboxes).map(cb => parseInt(cb.dataset.orderId));
+        }
+
+        // 알림톡 일괄 발송
+        async function batchSendAlimtalk() {
+            const orderIds = getSelectedOrderIds();
+            if (orderIds.length === 0) {
+                alert('발송할 주문을 선택해주세요.');
+                return;
+            }
+
+            if (!confirm(`선택한 ${orderIds.length}건에 알림톡을 발송하시겠습니까?`)) {
+                return;
+            }
+
+            const batchBtn = document.getElementById('batchSendBtn');
+            const loadingSpan = document.getElementById('batchSendLoading');
+
+            batchBtn.disabled = true;
+            loadingSpan.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/sync/alimtalk/batch-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderIds: orderIds })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`발송 완료!\n성공: ${result.successCount}건\n실패: ${result.failedCount}건\n제외: ${result.skippedCount}건`);
+
+                    // 발송 성공한 주문의 UI 업데이트
+                    orderIds.forEach(orderId => {
+                        updateRowAfterAlimtalkSent(orderId);
+                    });
+
+                    // 체크박스 초기화
+                    document.querySelectorAll('.order-checkbox:checked').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    document.querySelectorAll('.select-all-checkbox').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    updateSelectedCount();
+                } else {
+                    alert('발송 실패: ' + result.message);
+                }
+            } catch (e) {
+                console.error('Batch send error:', e);
+                alert('발송 중 오류가 발생했습니다.');
+            } finally {
+                batchBtn.disabled = false;
+                loadingSpan.classList.add('hidden');
+                updateSelectedCount();
+            }
+        }
+
+        // 발송 완료 후 행 UI 업데이트
+        function updateRowAfterAlimtalkSent(orderId) {
+            const row = document.querySelector(`tr[data-id="${orderId}"]`);
+            if (!row) return;
+
+            // 행 데이터 속성 업데이트
+            row.dataset.alimtalkSent = 'true';
+            row.dataset.canSend = 'false';
+
+            // 체크박스 비활성화
+            const checkbox = row.querySelector('.order-checkbox');
+            if (checkbox) {
+                checkbox.disabled = true;
+                checkbox.checked = false;
+                checkbox.className = 'order-checkbox w-4 h-4 text-gray-300 border-gray-200 rounded cursor-not-allowed opacity-50';
+            }
+
+            // 상태 버튼 텍스트 업데이트 (확정 → 확정(발송완료))
+            const statusBtn = row.querySelector('.status-btn');
+            if (statusBtn && statusBtn.dataset.currentStatus === '확정') {
+                statusBtn.textContent = '확정(발송완료)';
+                statusBtn.dataset.alimtalkSent = 'true';
+            }
+        }
+
+        // 페이지 로드 시 선택된 항목 수 및 노출 건수 초기화, 정렬 적용
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSelectedCount();
+            updateDisplayedOrderCount();
+            // preferredDate 필터가 있을 때만 프론트 정렬 적용
+            // 필터 없을 때는 서버에서 order_event_date_dt ASC로 이미 정렬됨
+            if (selectedPreferredDate) {
+                sortAllTables();
+            }
+        });
+
+        // ========== 프론트 정렬 관련 ==========
+
+        // 관리상태 정렬 우선순위 (내림차순: 숫자가 클수록 위에 표시)
+        const STATUS_PRIORITY = {
+            '확정': 100,
+            '확인필요': 90,
+            '대기': 80,
+            '결제대기중': 70,
+            '이월': 60,
+            '불참': 50,
+            '환불': 40,
+            '환불(대기자환불)': 30,
+            '환불(참가취소,변심)': 20
+        };
+
+        // 상태 우선순위 가져오기
+        function getStatusPriority(status) {
+            return STATUS_PRIORITY[status] || 0;
+        }
+
+        // 테이블 정렬 함수
+        function sortTable(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+            if (rows.length === 0) return;
+
+            // 정렬: 1순위 관리상태(내림차순), 2순위 출생년도(내림차순)
+            rows.sort((a, b) => {
+                // 1순위: 관리상태 내림차순
+                const statusA = a.dataset.managementStatus || '';
+                const statusB = b.dataset.managementStatus || '';
+                const priorityA = getStatusPriority(statusA);
+                const priorityB = getStatusPriority(statusB);
+
+                if (priorityA !== priorityB) {
+                    return priorityB - priorityA; // 내림차순
+                }
+
+                // 2순위: 출생년도 내림차순 (젊은 사람이 위로)
+                const birthYearA = parseInt(a.dataset.birthYear) || 0;
+                const birthYearB = parseInt(b.dataset.birthYear) || 0;
+
+                return birthYearB - birthYearA; // 내림차순
+            });
+
+            // 정렬된 순서대로 DOM 재배치
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // 남성/여성 테이블 모두 정렬
+        function sortAllTables() {
+            sortTable('maleTable');
+            sortTable('femaleTable');
+        }
+
+        // ========== 결제상태 확인 관련 (현재 노출건 전체 체크) ==========
+
+        // 현재 화면에 노출된 모든 주문 ID 조회
+        function getAllDisplayedOrderIds() {
+            const rows = document.querySelectorAll('tr[data-id]');
+            const orderIds = [];
+
+            rows.forEach(row => {
+                const orderId = row.dataset.id;
+                if (orderId) {
+                    orderIds.push(parseInt(orderId));
+                }
+            });
+
+            return orderIds;
+        }
+
+        // 노출 건수 업데이트 (결제상태 확인 버튼)
+        function updateDisplayedOrderCount() {
+            const orderIds = getAllDisplayedOrderIds();
+            const count = orderIds.length;
+
+            document.getElementById('displayedOrderCount').textContent = count;
+            document.getElementById('paymentCheckBtn').disabled = count === 0;
+        }
+
+        // 결제상태 확인 버튼 클릭 핸들러 (현재 노출건 전체 체크)
+        async function checkAllPaymentStatus() {
+            const orderIds = getAllDisplayedOrderIds();
+
+            if (orderIds.length === 0) {
+                showToast('확인할 주문이 없습니다.', 'warning');
+                return;
+            }
+
+            if (!confirm(`현재 노출된 ${orderIds.length}건의 결제상태를 확인하시겠습니까?\n(상품동기화와 동일한 전이 규칙 적용)`)) {
+                return;
+            }
+
+            const paymentCheckBtn = document.getElementById('paymentCheckBtn');
+            const loadingSpan = document.getElementById('paymentCheckLoading');
+
+            paymentCheckBtn.disabled = true;
+            loadingSpan.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/sync/orders/realtime-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderIds: orderIds })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const updatedCount = result.updatedOrders ? result.updatedOrders.length : 0;
+                    const skippedCount = result.skippedCount || 0;
+
+                    if (updatedCount > 0) {
+                        showToast(`결제상태 확인 완료! 체크: ${result.checkedCount}건, 상태변경: ${updatedCount}건`, 'success', 5000);
+
+                        // 변경된 주문의 UI 업데이트
+                        result.updatedOrders.forEach(order => {
+                            updateRowAfterPaymentCheck(order.id, order.paymentStatus, order.managementStatus, order.canSendAlimtalk);
+                        });
+                    } else {
+                        showToast(`결제상태 확인 완료! 체크: ${result.checkedCount}건, 변경 없음`, 'info');
+                    }
+
+                    // 건수 업데이트 및 정렬 재적용
+                    updateDisplayedOrderCount();
+                    updateSelectedCount();
+                    // preferredDate 필터가 있을 때만 정렬 적용
+                    if (selectedPreferredDate) {
+                        sortAllTables();
+                    }
+                } else {
+                    showToast('결제상태 확인 실패: ' + (result.message || '알 수 없는 오류'), 'error');
+                }
+            } catch (e) {
+                console.error('Payment check error:', e);
+                showToast('결제상태 확인 중 오류가 발생했습니다.', 'error');
+            } finally {
+                loadingSpan.classList.add('hidden');
+                updateDisplayedOrderCount();
+            }
+        }
+
+        // 결제확인 후 행 UI 업데이트
+        function updateRowAfterPaymentCheck(orderId, paymentStatus, managementStatus, canSendAlimtalk) {
+            const row = document.querySelector(`tr[data-id="${orderId}"]`);
+            if (!row) return;
+
+            // 데이터 속성 업데이트
+            row.dataset.paymentStatus = paymentStatus || '';
+            row.dataset.managementStatus = managementStatus || '';
+            row.dataset.canSend = canSendAlimtalk ? 'true' : 'false';
+
+            // 결제상태 셀 업데이트 (숨겨진 필드일 수 있음)
+            const paymentStatusCell = row.querySelector('td[data-field="paymentStatus"] span');
+            if (paymentStatusCell) {
+                if (paymentStatus === 'PAYMENT_COMPLETE') {
+                    paymentStatusCell.textContent = '완료';
+                    paymentStatusCell.className = 'text-green-600';
+                } else if (paymentStatus && paymentStatus.startsWith('REFUND')) {
+                    paymentStatusCell.textContent = '환불';
+                    paymentStatusCell.className = 'text-red-600';
+                } else if (paymentStatus === 'PAYMENT_PENDING') {
+                    paymentStatusCell.textContent = '대기';
+                    paymentStatusCell.className = 'text-gray-500';
+                }
+            }
+
+            // 관리상태 버튼 업데이트
+            const statusBtn = row.querySelector('.status-btn');
+            if (statusBtn && managementStatus) {
+                statusBtn.textContent = managementStatus;
+                statusBtn.dataset.currentStatus = managementStatus;
+                statusBtn.className = 'status-btn px-2 py-1 rounded text-xs font-medium ' + getStatusColorClass(managementStatus);
+            }
+
+            // 체크박스 활성화 (확정 상태로 변경된 경우)
+            const checkbox = row.querySelector('.order-checkbox');
+            if (checkbox && canSendAlimtalk) {
+                checkbox.disabled = false;
+                checkbox.className = 'order-checkbox w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 cursor-pointer';
+            }
+        }
+
+        // ========== 주문자 정보 편집 모달 ==========
+
+        async function openEditModal(button) {
+            const orderId = button.dataset.orderId;
+            const ordererName = button.dataset.ordererName || '';
+            const optBirthYear = button.dataset.optBirthYear || '';
+            const optJob = button.dataset.optJob || '';
+            const ordererCall = button.dataset.ordererCall || '';
+            const optProfile = button.dataset.optProfile || '';
+            const optPremium = button.dataset.optPremium || '';
+
+            document.getElementById('editOrderId').value = orderId;
+            document.getElementById('editOrdererName').value = ordererName;
+            document.getElementById('editOptBirthYear').value = optBirthYear;
+            document.getElementById('editOptJob').value = optJob;
+            document.getElementById('editOrdererCall').value = ordererCall;
+            document.getElementById('editOptProfile').value = optProfile;
+            document.getElementById('editOptPremium').value = optPremium;
+
+            // 상태 변경 이력 로딩 표시
+            document.getElementById('editStatusHistoryList').innerHTML = '<div class="p-2 text-center text-xs text-gray-400">로딩 중...</div>';
+            document.getElementById('editHistoryCount').textContent = '';
+
+            document.getElementById('editModal').classList.remove('hidden');
+
+            // 상태 변경 이력 로드 (비동기)
+            try {
+                const response = await fetch(`/api/sync/orders/${orderId}/detail`);
+                const result = await response.json();
+                if (result.success && result.statusHistory) {
+                    renderStatusHistory(result.statusHistory, 'editStatusHistoryList', 'editHistoryCount');
+                } else {
+                    renderStatusHistory([], 'editStatusHistoryList', 'editHistoryCount');
+                }
+            } catch (e) {
+                console.error('상태 변경 이력 로드 실패:', e);
+                renderStatusHistory([], 'editStatusHistoryList', 'editHistoryCount');
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+
+        async function submitEditForm(event) {
+            event.preventDefault();
+
+            const orderId = document.getElementById('editOrderId').value;
+            const ordererName = document.getElementById('editOrdererName').value;
+            const optBirthYear = document.getElementById('editOptBirthYear').value;
+            const optJob = document.getElementById('editOptJob').value;
+            const ordererCall = document.getElementById('editOrdererCall').value;
+            const optProfile = document.getElementById('editOptProfile').value;
+            const optPremium = document.getElementById('editOptPremium').value;
+
+            // 출생년도 유효성 검사 (값이 있을 경우만)
+            if (optBirthYear && !/^(19|20)\d{2}$/.test(optBirthYear)) {
+                showToast('출생년도는 1900~2099 사이의 4자리 숫자여야 합니다.', 'error');
+                return;
+            }
+
+            // 프로필 URL 유효성 검사 (값이 있을 경우만)
+            if (optProfile && !/^https?:\/\//.test(optProfile)) {
+                showToast('프로필 URL은 http:// 또는 https://로 시작해야 합니다.', 'error');
+                return;
+            }
+
+            const submitBtn = document.getElementById('editSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '저장 중...';
+
+            try {
+                const response = await fetch(`/api/sync/orders/${orderId}/orderer-info`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ordererName: ordererName,
+                        optBirthYear: optBirthYear,
+                        optJob: optJob,
+                        ordererCall: ordererCall,
+                        optProfile: optProfile,
+                        optPremium: optPremium
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('주문자 정보가 수정되었습니다.', 'success');
+                    closeEditModal();
+                    // 현재 URL로 새로고침 (필터 유지)
+                    window.location.reload();
+                } else {
+                    showToast(result.message || '수정에 실패했습니다.', 'error');
+                }
+            } catch (error) {
+                console.error('Edit error:', error);
+                showToast('수정 중 오류가 발생했습니다.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '적용';
+            }
+        }
+
+        // ESC 키로 편집 모달 닫기
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const editModal = document.getElementById('editModal');
+                if (editModal && !editModal.classList.contains('hidden')) {
+                    closeEditModal();
+                }
+                const createOrderModal = document.getElementById('createOrderModal');
+                if (createOrderModal && !createOrderModal.classList.contains('hidden')) {
+                    closeCreateOrderModal();
+                }
+            }
+        });
+
+        // ========== 수동 주문 생성 ==========
+
+        // 지역별 상품 목록 캐시
+        let regionProducts = [];
+
+        // 새참가자 등록 모달 열기
+        async function openCreateOrderModal() {
+            const modal = document.getElementById('createOrderModal');
+            modal.classList.remove('hidden');
+
+            // 폼 초기화
+            document.getElementById('createOrderForm').reset();
+
+            // 날짜 목록 초기 상태 (상품 선택 전)
+            document.getElementById('createOrderPreferredDate').innerHTML = '<option value="">상품을 먼저 선택하세요</option>';
+
+            // 상품 목록 로드 (지역 기반) - 자동 선택 시 날짜도 함께 로드됨
+            await populateCreateOrderProductSelect();
+        }
+
+        // 새참가자 등록 모달 닫기
+        function closeCreateOrderModal() {
+            document.getElementById('createOrderModal').classList.add('hidden');
+        }
+
+        // 상품 드롭다운 채우기 (지역 기반)
+        async function populateCreateOrderProductSelect() {
+            const select = document.getElementById('createOrderProdNo');
+            select.innerHTML = '<option value="">상품 선택</option>';
+
+            if (!selectedRegionName) {
+                select.innerHTML = '<option value="">지역을 선택해주세요</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sync/region/${encodeURIComponent(selectedRegionName)}/products`);
+                const result = await response.json();
+
+                if (result.success && result.products) {
+                    regionProducts = result.products;
+
+                    result.products.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.prodNo;
+                        option.textContent = product.name;
+                        // 현재 필터와 동일한 상품이면 선택
+                        if (product.prodNo === selectedProdNo) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+
+                    // 상품이 1개뿐이면 자동 선택 후 날짜 로드
+                    if (result.products.length === 1) {
+                        select.value = result.products[0].prodNo;
+                        await onCreateOrderProdNoChange();
+                    }
+                    // 현재 선택된 prodNo가 있으면 날짜 로드
+                    else if (selectedProdNo) {
+                        await onCreateOrderProdNoChange();
+                    }
+                } else {
+                    select.innerHTML = '<option value="">상품 조회 실패</option>';
+                }
+            } catch (error) {
+                console.error('Failed to load region products:', error);
+                select.innerHTML = '<option value="">상품 조회 오류</option>';
+            }
+        }
+
+        // 상품 변경 시 날짜 목록 로드
+        async function onCreateOrderProdNoChange() {
+            const prodNoSelect = document.getElementById('createOrderProdNo');
+            const dateSelect = document.getElementById('createOrderPreferredDate');
+            const prodNo = prodNoSelect.value;
+
+            dateSelect.innerHTML = '<option value="">날짜 로딩 중...</option>';
+
+            if (!prodNo) {
+                dateSelect.innerHTML = '<option value="">상품을 먼저 선택하세요</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sync/product-options/${prodNo}`);
+                const result = await response.json();
+
+                dateSelect.innerHTML = '<option value="">날짜 선택</option>';
+
+                if (result.success && result.preferredDates) {
+                    // 오늘 날짜 기준 근접도 정렬
+                    const sortedDates = sortPreferredDatesByProximity(result.preferredDates);
+                    sortedDates.forEach(date => {
+                        const option = document.createElement('option');
+                        option.value = date;
+                        option.textContent = date;
+                        // 현재 필터와 동일한 날짜면 선택
+                        if (date === selectedPreferredDate) {
+                            option.selected = true;
+                        }
+                        dateSelect.appendChild(option);
+                    });
+                } else {
+                    dateSelect.innerHTML = '<option value="">날짜 조회 실패</option>';
+                }
+            } catch (error) {
+                console.error('Failed to load product options:', error);
+                dateSelect.innerHTML = '<option value="">날짜 조회 오류</option>';
+            }
+        }
+
+        // 새참가자 등록 폼 제출
+        async function submitCreateOrderForm(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('createOrderName').value.trim();
+            const genderRadio = document.querySelector('input[name="createOrderGender"]:checked');
+            const gender = genderRadio ? genderRadio.value : '';
+            const phone = document.getElementById('createOrderPhone').value.replace(/-/g, '').trim();
+            const birthYear = document.getElementById('createOrderBirthYear').value.trim();
+            const job = document.getElementById('createOrderJob').value.trim();
+            const prodNo = document.getElementById('createOrderProdNo').value;
+            const preferredDate = document.getElementById('createOrderPreferredDate').value;
+
+            // 유효성 검사
+            if (!name) {
+                showToast('이름을 입력해주세요.', 'warning');
+                return;
+            }
+            if (!gender) {
+                showToast('성별을 선택해주세요.', 'warning');
+                return;
+            }
+            if (!phone.match(/^01[0-9]{8,9}$/)) {
+                showToast('전화번호 형식이 올바르지 않습니다. (예: 01012345678)', 'warning');
+                return;
+            }
+            if (!birthYear.match(/^(19|20)\d{2}$/)) {
+                showToast('출생년도 형식이 올바르지 않습니다. (예: 1990)', 'warning');
+                return;
+            }
+            if (!prodNo) {
+                showToast('상품을 선택해주세요.', 'warning');
+                return;
+            }
+            if (!preferredDate) {
+                showToast('참석날짜를 선택해주세요.', 'warning');
+                return;
+            }
+
+            const submitBtn = document.getElementById('createOrderSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 생성 중...';
+
+            try {
+                const response = await fetch('/api/sync/orders/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        gender: gender,
+                        phone: phone,
+                        birthYear: birthYear,
+                        job: job || null,
+                        preferredDate: preferredDate,
+                        prodNo: parseInt(prodNo),
+                        regionName: selectedRegionName
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('주문이 생성되었습니다.', 'success');
+                    closeCreateOrderModal();
+
+                    // 동일 필터조건으로 페이지 새로고침 (새 주문이 리스트에 보이도록)
+                    // 생성된 주문의 참석날짜로 필터 변경
+                    const urlParams = new URLSearchParams(window.location.search);
+                    urlParams.set('preferredDate', preferredDate);
+                    window.location.search = urlParams.toString();
+                } else {
+                    showToast(result.message || '주문 생성에 실패했습니다.', 'error');
+                }
+            } catch (error) {
+                console.error('Create order error:', error);
+                showToast('주문 생성 중 오류가 발생했습니다.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '주문 생성';
+            }
+        }
+
+        // ========== 수동 추가 주문 삭제 ==========
+
+        // 삭제 확인 및 실행
+        async function confirmDeleteOrder(button) {
+            const orderId = button.dataset.orderId;
+            const ordererName = button.dataset.ordererName || '이 주문';
+
+            if (!confirm(`'${ordererName}'님의 주문을 삭제하시겠습니까?\n\n수동으로 추가한 주문만 삭제 가능하며, 삭제 후 복구할 수 없습니다.`)) {
+                return;
+            }
+
+            // 삭제 중 버튼 비활성화
+            button.disabled = true;
+            button.innerHTML = '<svg class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+
+            try {
+                const response = await fetch(`/api/sync/orders/${orderId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('주문이 삭제되었습니다.', 'success');
+                    // 해당 행 제거
+                    const row = button.closest('tr');
+                    if (row) {
+                        row.remove();
+                    }
+                } else {
+                    showToast(result.message || '삭제에 실패했습니다.', 'error');
+                    // 버튼 복구
+                    button.disabled = false;
+                    button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+                }
+            } catch (error) {
+                console.error('Delete order error:', error);
+                showToast('삭제 중 오류가 발생했습니다.', 'error');
+                // 버튼 복구
+                button.disabled = false;
+                button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+            }
+        }
+    </script>
+</th:block>
+</body>
+</html>

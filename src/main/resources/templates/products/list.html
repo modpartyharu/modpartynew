@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>상품 조회</title>
+</head>
+<body>
+    <h1 layout:fragment="page-title">상품 조회</h1>
+
+    <div layout:fragment="content">
+        <div class="space-y-6">
+            <!-- 검색 필터 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <form th:action="@{/api-view/products}" method="get" class="grid gap-4 md:grid-cols-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">상품 상태</label>
+                        <select name="prodStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">전체</option>
+                            <option value="sale" th:selected="${prodStatus == 'sale'}">판매중</option>
+                            <option value="nosale" th:selected="${prodStatus == 'nosale'}">판매종료</option>
+                            <option value="soldout" th:selected="${prodStatus == 'soldout'}">품절</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">페이지 크기</label>
+                        <select name="limit" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="10" th:selected="${limit == 10}">10개</option>
+                            <option value="20" th:selected="${limit == 20}">20개</option>
+                            <option value="50" th:selected="${limit == 50}">50개</option>
+                            <option value="100" th:selected="${limit == 100}">100개</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            검색
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 상품 목록 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900">상품 목록</h2>
+                    <span class="text-sm text-gray-500">
+                        총 <span th:text="${totalCount}">0</span>건
+                    </span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상품</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">카테고리</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">지역</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상품코드</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가격</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">배지/이벤트</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">리뷰</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr th:if="${products == null || products.isEmpty()}">
+                                <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                                    등록된 상품이 없습니다.
+                                </td>
+                            </tr>
+                            <tr th:each="product : ${products}" class="hover:bg-gray-50"
+                                th:data-categories="${product.categories != null ? #strings.listJoin(product.categories, ',') : ''}"
+                                th:data-prodno="${product.prodNo}">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center">
+                                        <div th:if="${product.productImages != null && !product.productImages.isEmpty()}" class="flex-shrink-0 h-12 w-12">
+                                            <img th:src="${product.productImages[0]}" alt="상품 이미지" class="h-12 w-12 rounded-lg object-cover">
+                                        </div>
+                                        <div th:unless="${product.productImages != null && !product.productImages.isEmpty()}" class="flex-shrink-0 h-12 w-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900" th:text="${product.name}">상품명</div>
+                                            <div th:if="${product.simpleContent != null}" class="text-xs text-gray-500 max-w-xs truncate" th:text="${product.simpleContent}">간략설명</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <!-- 카테고리명 표시 (JS로 채움) -->
+                                    <div class="category-names flex flex-wrap gap-1 max-w-xs">
+                                        <span class="text-xs text-gray-400">로딩중...</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center space-x-2">
+                                        <!-- 상품명에서 [지역] 패턴 추출 (참고용) -->
+                                        <th:block th:if="${product.name != null && product.name.startsWith('[')}">
+                                            <th:block th:with="endIdx=${product.name.indexOf(']')}">
+                                                <span th:if="${endIdx > 0}" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600"
+                                                      th:text="${product.name.substring(1, endIdx)}">지역</span>
+                                            </th:block>
+                                        </th:block>
+                                        <!-- 지역확인 버튼 -->
+                                        <button type="button"
+                                                th:onclick="'showRegionInfo(' + ${product.prodNo} + ')'"
+                                                class="px-2 py-1 text-xs font-medium rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors">
+                                            상세
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900" th:text="${product.prodNo}">-</div>
+                                    <div class="text-xs text-gray-500" th:text="${product.prodCode}">-</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900" th:text="${#numbers.formatInteger(product.price, 0, 'COMMA')} + '원'">0</div>
+                                    <div th:if="${product.priceOrg != null && product.priceOrg != product.price && product.priceOrg > 0}" class="text-xs text-gray-400 line-through" th:text="${#numbers.formatInteger(product.priceOrg, 0, 'COMMA')} + '원'">0</div>
+                                    <div th:if="${product.maximumPurchaseQuantity != null && product.maximumPurchaseQuantity > 0}" class="text-xs text-blue-500">최대 <span th:text="${product.maximumPurchaseQuantity}">1</span>개</div>
+                                </td>
+                                <!-- 배지/이벤트 -->
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-wrap gap-1 max-w-[150px]">
+                                        <!-- 배지 -->
+                                        <span th:if="${product.isBadgeBest == 'Y'}" class="px-1.5 py-0.5 text-xs font-bold rounded bg-yellow-400 text-yellow-900">BEST</span>
+                                        <span th:if="${product.isBadgeHot == 'Y'}" class="px-1.5 py-0.5 text-xs font-bold rounded bg-red-500 text-white">HOT</span>
+                                        <span th:if="${product.isBadgeNew == 'Y'}" class="px-1.5 py-0.5 text-xs font-bold rounded bg-green-500 text-white">NEW</span>
+                                        <span th:if="${product.isBadgeMd == 'Y'}" class="px-1.5 py-0.5 text-xs font-bold rounded bg-purple-500 text-white">MD</span>
+                                    </div>
+                                    <!-- 이벤트 문구 -->
+                                    <div th:if="${product.eventWords != null && !product.eventWords.isEmpty()}" class="mt-1 text-xs text-orange-600 font-medium max-w-[150px] truncate" th:text="${product.eventWords}" th:title="${product.eventWords}">이벤트</div>
+                                    <!-- 브랜드 -->
+                                    <div th:if="${product.brand != null && !product.brand.isEmpty()}" class="mt-1 text-xs text-gray-500" th:text="${product.brand}">브랜드</div>
+                                </td>
+                                <!-- 리뷰 -->
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <span th:if="${product.reviewCount != null && product.reviewCount > 0}" class="inline-flex items-center text-sm text-gray-900">
+                                        <svg class="w-4 h-4 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                        </svg>
+                                        <span th:text="${product.reviewCount}">0</span>
+                                    </span>
+                                    <span th:unless="${product.reviewCount != null && product.reviewCount > 0}" class="text-xs text-gray-400">-</span>
+                                </td>
+                                <!-- 상태 -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                          th:classappend="${product.prodStatus == 'sale'} ? 'bg-green-100 text-green-800' :
+                                                          (${product.prodStatus == 'nosale'} ? 'bg-red-100 text-red-800' :
+                                                          (${product.prodStatus == 'soldout'} ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'))"
+                                          th:text="${product.prodStatus == 'sale'} ? '판매중' :
+                                                   (${product.prodStatus == 'nosale'} ? '판매종료' :
+                                                   (${product.prodStatus == 'soldout'} ? '품절' : ${product.prodStatus}))">-</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 페이지네이션 -->
+                <div th:if="${totalPage != null && totalPage > 1}" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div class="text-sm text-gray-500">
+                        페이지 <span th:text="${currentPage}">1</span> / <span th:text="${totalPage}">1</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <a th:if="${currentPage > 1}"
+                           th:href="@{/api-view/products(page=${currentPage - 1}, limit=${limit}, prodStatus=${prodStatus})}"
+                           class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">이전</a>
+                        <a th:if="${currentPage < totalPage}"
+                           th:href="@{/api-view/products(page=${currentPage + 1}, limit=${limit}, prodStatus=${prodStatus})}"
+                           class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">다음</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 지역 정보 모달 -->
+        <div id="regionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">상품 지역 정보</h3>
+                    <button onclick="closeRegionModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="regionModalContent" class="p-6">
+                    <div class="flex justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script th:inline="javascript">
+            // 전역 카테고리 맵 (categoryCode -> name)
+            let categoryMap = {};
+            let categoriesLoaded = false;
+            const CATEGORY_CACHE_KEY = 'imweb_categories';
+            const CATEGORY_CACHE_EXPIRE_KEY = 'imweb_categories_expire';
+            const CACHE_DURATION = 60 * 60 * 1000; // 1시간
+
+            // 페이지 로드 시 카테고리 로드
+            document.addEventListener('DOMContentLoaded', function() {
+                loadCategories();
+            });
+
+            // 카테고리 목록 로드 (localStorage 캐싱)
+            function loadCategories() {
+                // 캐시 확인
+                const cachedData = localStorage.getItem(CATEGORY_CACHE_KEY);
+                const cacheExpire = localStorage.getItem(CATEGORY_CACHE_EXPIRE_KEY);
+
+                if (cachedData && cacheExpire && Date.now() < parseInt(cacheExpire)) {
+                    // 캐시 사용
+                    console.log('Using cached categories');
+                    const data = JSON.parse(cachedData);
+                    buildCategoryMap(data);
+                    categoriesLoaded = true;
+                    updateCategoryDisplay();
+                    return;
+                }
+
+                // API 호출
+                fetch('/api-view/categories')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (Array.isArray(data)) {
+                            // localStorage에 저장
+                            localStorage.setItem(CATEGORY_CACHE_KEY, JSON.stringify(data));
+                            localStorage.setItem(CATEGORY_CACHE_EXPIRE_KEY, (Date.now() + CACHE_DURATION).toString());
+
+                            // 계층 구조를 평탄화하여 categoryMap 생성
+                            buildCategoryMap(data);
+                            categoriesLoaded = true;
+                            console.log('Categories loaded from API:', Object.keys(categoryMap).length);
+
+                            // 테이블의 카테고리명 업데이트
+                            updateCategoryDisplay();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Failed to load categories:', error);
+                        updateCategoryDisplay(); // 실패해도 코드로 표시
+                    });
+            }
+
+            // 계층 구조 카테고리를 평탄화하여 맵 생성
+            function buildCategoryMap(categories, parentName = '') {
+                categories.forEach(cat => {
+                    if (cat.categoryCode && cat.name) {
+                        const fullName = parentName ? `${parentName} > ${cat.name}` : cat.name;
+                        categoryMap[cat.categoryCode] = {
+                            name: cat.name,
+                            fullName: fullName
+                        };
+                    }
+                    if (cat.children && Array.isArray(cat.children)) {
+                        buildCategoryMap(cat.children, cat.name || '');
+                    }
+                });
+            }
+
+            // 카테고리 코드를 이름으로 변환
+            function getCategoryName(code) {
+                if (categoryMap[code]) {
+                    return categoryMap[code].name;
+                }
+                return code; // 못 찾으면 코드 반환
+            }
+
+            // 테이블의 카테고리명 업데이트
+            function updateCategoryDisplay() {
+                const rows = document.querySelectorAll('tr[data-categories]');
+                rows.forEach(row => {
+                    const categoriesStr = row.getAttribute('data-categories');
+                    const categoryCell = row.querySelector('.category-names');
+
+                    if (!categoryCell) return;
+
+                    if (!categoriesStr) {
+                        categoryCell.innerHTML = '<span class="text-xs text-gray-400">-</span>';
+                        return;
+                    }
+
+                    const codes = categoriesStr.split(',').filter(c => c.trim());
+                    const names = codes.map(code => {
+                        const catInfo = categoryMap[code.trim()];
+                        return catInfo ? catInfo.name : null;
+                    }).filter(n => n); // null 제거
+
+                    if (names.length === 0) {
+                        categoryCell.innerHTML = '<span class="text-xs text-gray-400">-</span>';
+                        return;
+                    }
+
+                    categoryCell.innerHTML = names.map(name =>
+                        `<span class="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">${name}</span>`
+                    ).join('');
+                });
+            }
+
+            function showRegionInfo(prodNo) {
+                const modal = document.getElementById('regionModal');
+                const content = document.getElementById('regionModalContent');
+
+                // 로딩 표시
+                content.innerHTML = `
+                    <div class="flex justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
+                `;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                // API 호출
+                fetch(`/api-view/products/${prodNo}/detail`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            content.innerHTML = `
+                                <div class="text-center py-8 text-red-500">
+                                    <p>오류: ${data.error}</p>
+                                </div>
+                            `;
+                            return;
+                        }
+
+                        // 지역 정보 추출 (seoTitle에서)
+                        let regionInfo = '-';
+                        if (data.seoTitle) {
+                            // seoTitle에서 첫 번째 단어나 쉼표 전까지 추출
+                            const firstPart = data.seoTitle.split(',')[0].trim();
+                            regionInfo = firstPart;
+                        }
+
+                        // 상품명에서 [지역] 추출
+                        let nameRegion = '-';
+                        if (data.name && data.name.startsWith('[')) {
+                            const endIdx = data.name.indexOf(']');
+                            if (endIdx > 0) {
+                                nameRegion = data.name.substring(1, endIdx);
+                            }
+                        }
+
+                        // 카테고리 이름으로 변환
+                        const categoryNames = (data.categories || []).map(code => {
+                            const catInfo = categoryMap[code];
+                            return catInfo ? catInfo.name : code;
+                        });
+
+                        content.innerHTML = `
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-500 mb-1">상품번호</h4>
+                                    <p class="text-gray-900">${data.prodNo || '-'}</p>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-500 mb-1">상품명</h4>
+                                    <p class="text-gray-900">${data.name || '-'}</p>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-500 mb-1">상품명 지역 (참고)</h4>
+                                    <p class="text-gray-900">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">${nameRegion}</span>
+                                    </p>
+                                </div>
+                                <div class="border-t border-gray-200 pt-4">
+                                    <h4 class="text-sm font-medium text-blue-600 mb-1">SEO 타이틀 (지역 정보)</h4>
+                                    <p class="text-gray-900 font-medium">
+                                        <span class="px-2 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800">${regionInfo}</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500 mt-1">${data.seoTitle || '-'}</p>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-500 mb-1">SEO 설명</h4>
+                                    <p class="text-sm text-gray-600">${data.seoDescription || '-'}</p>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-500 mb-1">카테고리</h4>
+                                    <div class="flex flex-wrap gap-1">
+                                        ${categoryNames.map(name =>
+                                            `<span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">${name}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        content.innerHTML = `
+                            <div class="text-center py-8 text-red-500">
+                                <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
+                                <p class="text-sm">${error.message}</p>
+                            </div>
+                        `;
+                    });
+            }
+
+            function closeRegionModal() {
+                const modal = document.getElementById('regionModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            // ESC 키로 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeRegionModal();
+                }
+            });
+
+            // 모달 배경 클릭으로 닫기
+            document.getElementById('regionModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeRegionModal();
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.SyncOrderCategoryMapper">
+
+    <resultMap id="SyncOrderCategoryResultMap" type="org.webnori.ordersyncoffice.domain.SyncOrderCategory">
+        <id property="id" column="id"/>
+        <result property="syncOrderId" column="sync_order_id"/>
+        <result property="categoryCode" column="category_code"/>
+        <result property="siteCode" column="site_code"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findBySyncOrderId" resultMap="SyncOrderCategoryResultMap">
+        SELECT * FROM sync_order_categories
+        WHERE sync_order_id = #{syncOrderId}
+    </select>
+
+    <insert id="insert" parameterType="org.webnori.ordersyncoffice.domain.SyncOrderCategory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sync_order_categories (sync_order_id, category_code, site_code)
+        VALUES (#{syncOrderId}, #{categoryCode}, #{siteCode})
+    </insert>
+
+    <delete id="deleteBySyncOrderId">
+        DELETE FROM sync_order_categories WHERE sync_order_id = #{syncOrderId}
+    </delete>
+
+    <delete id="deleteAllBySiteCode">
+        DELETE FROM sync_order_categories WHERE site_code = #{siteCode}
+    </delete>
+
+</mapper>

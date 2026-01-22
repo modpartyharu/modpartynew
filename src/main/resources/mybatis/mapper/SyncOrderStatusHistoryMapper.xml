@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.SyncOrderStatusHistoryMapper">
+
+    <resultMap id="SyncOrderStatusHistoryResultMap" type="org.webnori.ordersyncoffice.domain.SyncOrderStatusHistory">
+        <id property="id" column="id"/>
+        <result property="syncOrderId" column="sync_order_id"/>
+        <result property="siteCode" column="site_code"/>
+        <result property="previousStatus" column="previous_status"/>
+        <result property="newStatus" column="new_status"/>
+        <result property="carryoverRound" column="carryover_round"/>
+        <result property="changedBy" column="changed_by"/>
+        <result property="changedAt" column="changed_at"/>
+    </resultMap>
+
+    <!-- 이력 추가 -->
+    <insert id="insert" parameterType="org.webnori.ordersyncoffice.domain.SyncOrderStatusHistory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sync_order_status_history (sync_order_id, site_code, previous_status, new_status, carryover_round, changed_by)
+        VALUES (#{syncOrderId}, #{siteCode}, #{previousStatus}, #{newStatus}, #{carryoverRound}, #{changedBy})
+    </insert>
+
+    <!-- 주문별 이력 조회 (최신순) -->
+    <select id="findBySyncOrderId" resultMap="SyncOrderStatusHistoryResultMap">
+        SELECT * FROM sync_order_status_history
+        WHERE sync_order_id = #{syncOrderId}
+        ORDER BY changed_at DESC
+    </select>
+
+    <!-- 주문별 이력 조회 (최대 N개) -->
+    <select id="findBySyncOrderIdLimit" resultMap="SyncOrderStatusHistoryResultMap">
+        SELECT * FROM sync_order_status_history
+        WHERE sync_order_id = #{syncOrderId}
+        ORDER BY changed_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 사이트별 전체 이력 삭제 -->
+    <delete id="deleteAllBySiteCode">
+        DELETE FROM sync_order_status_history WHERE site_code = #{siteCode}
+    </delete>
+
+    <!-- 주문별 이력 삭제 -->
+    <delete id="deleteBySyncOrderId">
+        DELETE FROM sync_order_status_history WHERE sync_order_id = #{syncOrderId}
+    </delete>
+
+</mapper>

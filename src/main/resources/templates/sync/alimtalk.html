@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>알림톡 테스트</title>
+</head>
+<body>
+    <h1 layout:fragment="page-title">알림톡 테스트</h1>
+
+    <div layout:fragment="content">
+        <div class="space-y-6">
+            <!-- 상단 안내 -->
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-yellow-700">알림톡 템플릿을 선택하고 테스트 발송할 수 있습니다. 메시지 내용은 카카오 심사를 받은 내용이므로 수정할 수 없습니다.</span>
+                </div>
+            </div>
+
+            <!-- 메인 컨텐츠 -->
+            <div class="grid gap-6 lg:grid-cols-2">
+                <!-- 좌측: 템플릿 목록 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">템플릿 목록</h2>
+                    <div class="space-y-2 max-h-[600px] overflow-y-auto">
+                        <div th:each="template : ${templates}"
+                             th:data-template-id="${template.templateId}"
+                             th:data-template-name="${template.templateName}"
+                             th:data-message-content="${template.messageContent}"
+                             th:data-sms-content="${template.smsContent}"
+                             th:data-has-variables="${template.hasVariables}"
+                             th:data-variables="${#strings.arrayJoin(template.variables, ',')}"
+                             class="template-item p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                             onclick="selectTemplate(this)">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-medium text-gray-900" th:text="${template.templateName}">템플릿명</span>
+                                    <span class="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded" th:text="'#' + ${template.templateId}">ID</span>
+                                </div>
+                                <div th:if="${template.hasVariables}" class="flex items-center">
+                                    <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">가변요소</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 우측: 미리보기 및 발송 -->
+                <div class="space-y-6">
+                    <!-- 미리보기 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">미리보기</h2>
+
+                        <div id="previewEmpty" class="text-center py-12 text-gray-500">
+                            <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                            </svg>
+                            <p>좌측에서 템플릿을 선택하세요</p>
+                        </div>
+
+                        <div id="previewContent" class="hidden">
+                            <!-- 템플릿 정보 -->
+                            <div class="mb-4 pb-4 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <span id="previewTemplateName" class="font-medium text-gray-900">템플릿명</span>
+                                    <span id="previewTemplateId" class="px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded">ID</span>
+                                </div>
+                            </div>
+
+                            <!-- 가변요소 입력 -->
+                            <div id="variableInputs" class="hidden mb-4 space-y-3">
+                                <div class="text-sm font-medium text-gray-700 mb-2">가변요소 입력</div>
+                                <!-- 동적으로 생성됨 -->
+                            </div>
+
+                            <!-- 메시지 미리보기 -->
+                            <div class="bg-yellow-50 rounded-lg p-4">
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12 3c5.799 0 10.5 3.664 10.5 8.185 0 4.52-4.701 8.184-10.5 8.184a13.5 13.5 0 01-1.727-.11l-4.408 2.883c-.501.265-.678.236-.472-.413l.892-3.678c-2.88-1.46-4.785-3.99-4.785-6.866C1.5 6.665 6.201 3 12 3z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="text-sm text-yellow-800 font-medium mb-1">카카오톡 알림톡</div>
+                                        <div id="previewMessage" class="text-sm text-gray-800 whitespace-pre-wrap bg-white rounded-lg p-3 border border-yellow-200">
+                                            메시지 내용
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 발송 설정 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">발송 설정</h2>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">수신 전화번호</label>
+                                <input type="tel" id="receiverPhone" th:value="${testPhone}"
+                                       placeholder="01012345678"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <p class="text-xs text-gray-500 mt-1">하이픈(-) 없이 입력하세요</p>
+                            </div>
+
+                            <button id="sendBtn" onclick="sendTestAlimtalk()" disabled
+                                    class="w-full px-4 py-3 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                <span>테스트 발송</span>
+                            </button>
+
+                            <div id="sendResult" class="hidden p-4 rounded-lg"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 발송 이력 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">발송 이력</h3>
+                    <button onclick="loadHistory(1)" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors">
+                        새로고침
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">발송시간</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">템플릿</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">수신번호</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">발송유형</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">결과</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                    발송 이력을 불러오는 중...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 페이징 -->
+                <div id="historyPagination" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div id="historyInfo" class="text-sm text-gray-500"></div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="loadHistory(currentPage - 1)" id="prevBtn" disabled
+                                class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            이전
+                        </button>
+                        <span id="pageInfo" class="text-sm text-gray-600">1 / 1</span>
+                        <button onclick="loadHistory(currentPage + 1)" id="nextBtn" disabled
+                                class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            다음
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            let selectedTemplateId = null;
+            let selectedTemplate = null;
+            let currentPage = 1;
+            let totalPages = 1;
+
+            // 페이지 로드 시 이력 조회
+            document.addEventListener('DOMContentLoaded', function() {
+                loadHistory(1);
+            });
+
+            // 템플릿 선택
+            function selectTemplate(element) {
+                // 기존 선택 해제
+                document.querySelectorAll('.template-item').forEach(el => {
+                    el.classList.remove('bg-blue-50', 'border-blue-500');
+                    el.classList.add('border-gray-200');
+                });
+
+                // 새 선택 적용
+                element.classList.remove('border-gray-200');
+                element.classList.add('bg-blue-50', 'border-blue-500');
+
+                // 템플릿 정보 추출
+                selectedTemplateId = parseInt(element.dataset.templateId);
+                selectedTemplate = {
+                    templateId: selectedTemplateId,
+                    templateName: element.dataset.templateName,
+                    messageContent: element.dataset.messageContent,
+                    smsContent: element.dataset.smsContent,
+                    hasVariables: element.dataset.hasVariables === 'true',
+                    variables: element.dataset.variables ? element.dataset.variables.split(',').filter(v => v) : []
+                };
+
+                // 미리보기 업데이트
+                updatePreview();
+            }
+
+            // 미리보기 업데이트
+            function updatePreview() {
+                document.getElementById('previewEmpty').classList.add('hidden');
+                document.getElementById('previewContent').classList.remove('hidden');
+
+                document.getElementById('previewTemplateName').textContent = selectedTemplate.templateName;
+                document.getElementById('previewTemplateId').textContent = '#' + selectedTemplate.templateId;
+
+                // 가변요소 입력 필드 생성
+                const variableInputs = document.getElementById('variableInputs');
+                if (selectedTemplate.hasVariables && selectedTemplate.variables.length > 0) {
+                    variableInputs.classList.remove('hidden');
+                    variableInputs.innerHTML = '<div class="text-sm font-medium text-gray-700 mb-2">가변요소 입력</div>';
+
+                    selectedTemplate.variables.forEach(variable => {
+                        const label = variable === '#{NAME}' ? '이름' : (variable === '#{PRODUCT}' ? '상품명' : variable);
+                        variableInputs.innerHTML += `
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">${label}</label>
+                                <input type="text" data-variable="${variable}"
+                                       placeholder="${label}"
+                                       oninput="updateMessagePreview()"
+                                       class="variable-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        `;
+                    });
+                } else {
+                    variableInputs.classList.add('hidden');
+                    variableInputs.innerHTML = '';
+                }
+
+                updateMessagePreview();
+
+                // 발송 버튼 활성화
+                document.getElementById('sendBtn').disabled = false;
+            }
+
+            // 메시지 미리보기 업데이트
+            function updateMessagePreview() {
+                if (!selectedTemplate) return;
+
+                let message = selectedTemplate.messageContent;
+
+                // 가변요소 치환
+                document.querySelectorAll('.variable-input').forEach(input => {
+                    const variable = input.dataset.variable;
+                    const value = input.value || variable;
+                    message = message.replace(new RegExp(variable.replace(/[#{}]/g, '\\$&'), 'g'), value);
+                });
+
+                document.getElementById('previewMessage').textContent = message;
+            }
+
+            // 테스트 발송
+            async function sendTestAlimtalk() {
+                if (!selectedTemplateId) {
+                    alert('템플릿을 선택하세요.');
+                    return;
+                }
+
+                const receiverPhone = document.getElementById('receiverPhone').value.trim();
+                if (!receiverPhone) {
+                    alert('수신 전화번호를 입력하세요.');
+                    return;
+                }
+
+                const sendBtn = document.getElementById('sendBtn');
+                const resultDiv = document.getElementById('sendResult');
+
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>발송 중...</span>';
+
+                // 가변요소 수집
+                const variables = {};
+                document.querySelectorAll('.variable-input').forEach(input => {
+                    if (input.value) {
+                        variables[input.dataset.variable] = input.value;
+                    }
+                });
+
+                try {
+                    const response = await fetch('/api/sync/alimtalk/send-test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            templateId: selectedTemplateId,
+                            receiverPhone: receiverPhone,
+                            variables: Object.keys(variables).length > 0 ? variables : null
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    resultDiv.classList.remove('hidden');
+                    if (result.success) {
+                        resultDiv.className = 'p-4 rounded-lg bg-green-50 border border-green-200 text-green-700';
+                        resultDiv.innerHTML = `
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span>${result.message}</span>
+                            </div>
+                        `;
+                        // 이력 새로고침
+                        loadHistory(1);
+                    } else {
+                        resultDiv.className = 'p-4 rounded-lg bg-red-50 border border-red-200 text-red-700';
+                        resultDiv.innerHTML = `
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                <span>${result.message}</span>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    resultDiv.classList.remove('hidden');
+                    resultDiv.className = 'p-4 rounded-lg bg-red-50 border border-red-200 text-red-700';
+                    resultDiv.innerHTML = '발송 중 오류가 발생했습니다.';
+                } finally {
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg><span>테스트 발송</span>';
+                }
+            }
+
+            // 발송 이력 로드
+            async function loadHistory(page) {
+                if (page < 1) return;
+                currentPage = page;
+
+                try {
+                    const response = await fetch(`/api/sync/alimtalk/history?page=${page}&size=30`);
+                    const result = await response.json();
+
+                    if (result.success && result.data) {
+                        const data = result.data;
+                        totalPages = data.totalPages || 1;
+                        updateHistoryTable(data.content);
+                        updatePagination(data);
+                    }
+                } catch (e) {
+                    console.error('발송 이력 로드 실패:', e);
+                }
+            }
+
+            // 이력 테이블 업데이트
+            function updateHistoryTable(items) {
+                const tbody = document.getElementById('historyBody');
+
+                if (!items || items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-500">발송 이력이 없습니다.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = items.map(item => {
+                    const sentAt = item.sentAt ? formatDateTime(item.sentAt) : '-';
+                    const sendTypeLabel = item.sendType === 'MANUAL_TEST' ? '수동 테스트' : '상태 변경';
+                    const sendTypeClass = item.sendType === 'MANUAL_TEST' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
+                    const resultClass = item.isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                    const resultLabel = item.isSuccess ? '성공' : '실패';
+
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${sentAt}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <span class="font-medium">${item.templateName || '-'}</span>
+                                <span class="text-gray-500 ml-1">#${item.templateId}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.receiverPhone || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 py-0.5 ${sendTypeClass} rounded text-xs">${sendTypeLabel}</span>
+                                ${item.triggerStatus ? `<span class="ml-1 text-gray-500">(${item.triggerStatus})</span>` : ''}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 py-0.5 ${resultClass} rounded text-xs">${resultLabel}</span>
+                                ${!item.isSuccess && item.resultMessage ? `<span class="ml-1 text-red-500 text-xs">${item.resultMessage}</span>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // 페이지네이션 업데이트
+            function updatePagination(data) {
+                document.getElementById('historyInfo').textContent = `총 ${data.totalElements}건`;
+                document.getElementById('pageInfo').textContent = `${data.page} / ${data.totalPages || 1}`;
+                document.getElementById('prevBtn').disabled = data.page <= 1;
+                document.getElementById('nextBtn').disabled = data.page >= data.totalPages;
+            }
+
+            // 날짜 포맷
+            function formatDateTime(isoString) {
+                if (!isoString) return '-';
+                let utcString = isoString;
+                if (!isoString.endsWith('Z') && !isoString.includes('+')) {
+                    utcString = isoString.replace(' ', 'T') + 'Z';
+                }
+                const date = new Date(utcString);
+                const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+                const pad = n => n.toString().padStart(2, '0');
+                return `${kstDate.getUTCFullYear()}-${pad(kstDate.getUTCMonth() + 1)}-${pad(kstDate.getUTCDate())} ${pad(kstDate.getUTCHours())}:${pad(kstDate.getUTCMinutes())}`;
+            }
+        </script>
+    </th:block>
+</body>
+</html>

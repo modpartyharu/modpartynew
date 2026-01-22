@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Sync 현황</title>
+</head>
+<body>
+    <h1 layout:fragment="page-title">Sync 현황</h1>
+
+    <div layout:fragment="content">
+        <div class="space-y-6">
+            <!-- Stale 상태 정리 알림 -->
+            <div th:if="${staleCleanedUp != null}" class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    <span class="text-yellow-700" th:text="${staleCleanedUp} + '건의 중단된 동기화가 자동으로 실패 처리되었습니다. 다시 동기화를 시작할 수 있습니다.'"></span>
+                </div>
+            </div>
+
+            <!-- 자동 동기화 (스케줄러) 패널 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">자동 동기화 (스케줄러)</h2>
+                        <p class="text-sm text-gray-500 mt-1">
+                            <span th:text="${schedulerStatus != null} ? ${schedulerStatus.runIntervalMinutes} + '분' : '10분'">10분</span>
+                            간격으로 마지막 동기화 이후 변경된 주문을 자동 동기화합니다.
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <!-- 상태 배지 -->
+                        <span th:if="${schedulerStatus != null && schedulerStatus.isEnabled}" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">ON</span>
+                        <span th:if="${schedulerStatus == null || !schedulerStatus.isEnabled}" class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">OFF</span>
+
+                        <!-- 간격 설정 (비활성화 상태일 때만) -->
+                        <div th:if="${schedulerStatus == null || !schedulerStatus.isEnabled}" class="flex items-center space-x-2">
+                            <select id="intervalSelect" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="1">1분</option>
+                                <option value="5">5분</option>
+                                <option value="10" selected>10분</option>
+                                <option value="15">15분</option>
+                                <option value="30">30분</option>
+                                <option value="60">60분</option>
+                            </select>
+                            <button id="schedulerEnableBtn" onclick="enableSchedulerWithInterval()"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>시작</span>
+                            </button>
+                        </div>
+
+                        <!-- 비활성화 버튼 (활성화 상태일 때만) -->
+                        <button th:if="${schedulerStatus != null && schedulerStatus.isEnabled}"
+                                id="schedulerDisableBtn" onclick="disableScheduler()"
+                                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+                            </svg>
+                            <span>중지</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 스케줄러 상태 정보 -->
+                <div th:if="${schedulerStatus != null}" class="grid gap-4 md:grid-cols-3 mb-4">
+                    <div class="p-3 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">마지막 실행</div>
+                        <div class="font-medium text-gray-900" th:text="${schedulerStatus.lastRunAt != null} ? ${schedulerStatus.lastRunAt} : '-'">-</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">마지막 성공</div>
+                        <div class="font-medium text-green-600" th:text="${schedulerStatus.lastSuccessAt != null} ? ${schedulerStatus.lastSuccessAt} : '-'">-</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">다음 예정</div>
+                        <div class="font-medium text-blue-600" th:text="${schedulerStatus.nextRunAt != null} ? ${schedulerStatus.nextRunAt} : '-'">-</div>
+                    </div>
+                </div>
+
+                <!-- 에러 메시지 -->
+                <div th:if="${schedulerStatus != null && schedulerStatus.lastErrorMessage != null}" class="p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <span class="text-red-700 text-sm" th:text="${schedulerStatus.lastErrorMessage}">에러 메시지</span>
+                    </div>
+                </div>
+
+                <!-- 수동 실행 / 토큰 갱신 버튼 -->
+                <div class="flex space-x-2">
+                    <button onclick="runIncrementalSyncNow()" class="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        지금 실행
+                    </button>
+                    <button onclick="refreshBatchToken()" class="px-3 py-1.5 text-sm bg-gray-50 text-gray-700 rounded hover:bg-gray-100 transition-colors flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                        </svg>
+                        토큰 갱신
+                    </button>
+                </div>
+
+                <!-- 실시간 로그 뷰어 -->
+                <div class="mt-4 border-t border-gray-200 pt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-gray-700">실시간 스케줄러 로그</span>
+                            <span id="logConnectionStatus" class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">연결 대기</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label class="flex items-center text-sm text-gray-600">
+                                <input type="checkbox" id="autoScrollCheckbox" checked class="mr-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                자동 스크롤
+                            </label>
+                            <button onclick="clearSchedulerLogs()" class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors">
+                                로그 지우기
+                            </button>
+                        </div>
+                    </div>
+                    <div id="schedulerLogViewer" class="bg-gray-900 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs leading-relaxed">
+                        <div id="schedulerLogContent" class="space-y-0.5">
+                            <div class="text-gray-500">스케줄러 로그가 여기에 표시됩니다...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 알림톡 설정 패널 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">알림톡 설정</h2>
+                        <p class="text-sm text-gray-500 mt-1">관리상태 변경 시 알림톡이 발송됩니다. 현재는 테스트 모드로 지정된 전화번호로만 발송됩니다.</p>
+                    </div>
+                    <a href="/sync/alimtalk" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <span>테스트 발송</span>
+                    </a>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <!-- 테스트 전화번호 설정 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-3">
+                            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">테스트 전화번호</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <input type="tel" id="alimtalkTestPhone" th:value="${alimtalkTestPhone}"
+                                   placeholder="01012345678"
+                                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <button onclick="saveTestPhone()" id="saveTestPhoneBtn"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                저장
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">* 빈 값이면 알림톡이 발송되지 않습니다.</p>
+                    </div>
+
+                    <!-- 발송 대상 상태 안내 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-3">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">알림톡 발송 조건</span>
+                        </div>
+                        <div class="space-y-1 text-sm text-gray-600">
+                            <div class="flex items-center">
+                                <span class="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs mr-2">확정</span>
+                                <span>→ 상품별 맞춤 템플릿</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs mr-2">환불(대기자환불)</span>
+                                <span>→ 환불A 템플릿</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs mr-2">환불(참가취소,변심)</span>
+                                <span>→ 환불B 템플릿</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 최근 동기화 정보 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">최근 동기화 정보</h3>
+
+                <div th:if="${latestSync != null}" class="grid gap-4 md:grid-cols-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">상태</div>
+                        <div class="font-semibold" th:classappend="${latestSync.status == 'COMPLETED'} ? 'text-green-600' : (${latestSync.status == 'FAILED'} ? 'text-red-600' : 'text-blue-600')">
+                            <span th:if="${latestSync.status == 'COMPLETED'}">완료</span>
+                            <span th:if="${latestSync.status == 'FAILED'}">실패</span>
+                            <span th:if="${latestSync.status == 'RUNNING'}">진행 중</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">동기화 건수</div>
+                        <div class="font-semibold text-gray-900" th:text="${latestSync.syncedCount} + '건'">0건</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">실패 건수</div>
+                        <div class="font-semibold" th:classappend="${latestSync.failedCount > 0} ? 'text-red-600' : 'text-gray-900'" th:text="${latestSync.failedCount} + '건'">0건</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">동기화 기간</div>
+                        <div class="font-semibold text-gray-900 text-sm" th:text="${latestSync.startDate} + ' ~ ' + ${latestSync.endDate}">-</div>
+                    </div>
+                </div>
+
+                <div th:if="${latestSync == null}" class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <p>아직 동기화 이력이 없습니다.</p>
+                    <p class="text-sm mt-1">위의 '동기화 시작' 버튼을 클릭하여 시작하세요.</p>
+                </div>
+            </div>
+
+            <!-- 동기화 이력 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">동기화 이력</h3>
+                    <div id="historyPaginationInfo" class="text-sm text-gray-500"></div>
+                </div>
+
+                <div id="syncHistoryTableContainer">
+                    <div th:if="${syncStatusList != null && !syncStatusList.isEmpty()}" class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">유형</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">동기화 기간</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">성공/실패</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시작 시간</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">완료 시간</th>
+                                </tr>
+                            </thead>
+                            <tbody id="syncHistoryBody" class="bg-white divide-y divide-gray-200">
+                                <tr th:each="status : ${syncStatusList}" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <div class="flex items-center space-x-1">
+                                            <span th:if="${status.syncType == 'ORDERS'}" class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">주문</span>
+                                            <span th:if="${status.syncType == 'CATEGORIES'}" class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">카테고리</span>
+                                            <span th:if="${status.syncMode == 'AUTO'}" class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">자동</span>
+                                            <span th:if="${status.syncMode != 'AUTO'}" class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">수동</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span th:if="${status.status == 'COMPLETED'}" class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">완료</span>
+                                        <span th:if="${status.status == 'FAILED'}" class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">실패</span>
+                                        <span th:if="${status.status == 'RUNNING'}" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">진행 중</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${status.startDate} + ' ~ ' + ${status.endDate}">-</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span class="text-green-600" th:text="${status.syncedCount} + '건'"></span>
+                                        <span class="text-gray-400 mx-1">/</span>
+                                        <span class="text-red-600" th:text="${status.failedCount} + '건'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 kst-time" th:data-time="${status.startedAt}" th:text="${status.startedAt != null} ? ${#temporals.format(status.startedAt, 'yyyy-MM-dd HH:mm:ss')} : '-'">-</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 kst-time" th:data-time="${status.completedAt}" th:text="${status.completedAt != null} ? ${#temporals.format(status.completedAt, 'yyyy-MM-dd HH:mm:ss')} : '-'">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div th:if="${syncStatusList == null || syncStatusList.isEmpty()}" class="p-12 text-center text-gray-500">
+                        동기화 이력이 없습니다.
+                    </div>
+                </div>
+
+                <!-- 페이징 -->
+                <div id="historyPagination" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <button onclick="loadHistoryPage(currentHistoryPage - 1)" id="historyPrevBtn"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        이전
+                    </button>
+                    <div id="historyPageNumbers" class="flex items-center space-x-1"></div>
+                    <button onclick="loadHistoryPage(currentHistoryPage + 1)" id="historyNextBtn"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        다음
+                    </button>
+                </div>
+            </div>
+
+            <!-- 기능 안내 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">동기화 기능 안내</h3>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">주문 통합 동기화</span>
+                        </div>
+                        <p class="text-sm text-gray-500">주문정보 + 상품상세 + 회원프로필을 통합하여 하나의 테이블로 저장합니다.</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">Update or Insert</span>
+                        </div>
+                        <p class="text-sm text-gray-500">기존 데이터가 있으면 업데이트, 없으면 새로 저장합니다.</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">선택 기간</span>
+                        </div>
+                        <p class="text-sm text-gray-500">최근 1~3일 중 선택한 기간의 데이터를 동기화합니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 테이블 샘플 쿼리 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">테이블 샘플 쿼리</h3>
+                    <div class="flex items-center space-x-2">
+                        <select id="sampleTable" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="sync_orders">sync_orders (주문)</option>
+                            <option value="sync_categories">sync_categories (카테고리)</option>
+                            <option value="sync_order_categories">sync_order_categories (주문-카테고리)</option>
+                        </select>
+                        <select id="sampleOrder" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="DESC">최신순</option>
+                            <option value="ASC">오래된순</option>
+                        </select>
+                        <button onclick="executeSampleQuery()" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm">
+                            쿼리 실행
+                        </button>
+                    </div>
+                </div>
+                <div id="sampleQueryDisplay" class="bg-gray-900 rounded-lg p-3 mb-4">
+                    <code class="text-green-400 text-sm" id="queryCode">SELECT * FROM sync_orders WHERE site_code = '...' ORDER BY order_time DESC LIMIT 10</code>
+                </div>
+                <div id="sampleQueryResult" class="hidden">
+                    <div class="text-sm text-gray-500 mb-2">결과: <span id="resultCount">0</span>건</div>
+                    <div class="overflow-x-auto max-h-[300px] overflow-y-auto border border-gray-200 rounded-lg">
+                        <table class="min-w-full json-table divide-y divide-gray-200">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr id="resultHeader"></tr>
+                            </thead>
+                            <tbody id="resultBody" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="sampleQueryError" class="hidden text-red-500 text-sm"></div>
+            </div>
+
+            <!-- 데이터 초기화 (위험 영역) -->
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-red-700 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            데이터 초기화
+                        </h3>
+                        <p class="text-sm text-gray-500 mt-1">동기화된 모든 데이터와 동기화 이력을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+                    </div>
+                    <button onclick="openResetModal()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        <span>데이터 초기화</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 초기화 확인 모달 -->
+        <div id="resetModal" class="fixed inset-0 z-50 hidden">
+            <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeResetModal()"></div>
+            <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto">
+                    <div class="flex items-center justify-between p-4 border-b bg-red-50">
+                        <h3 class="text-lg font-semibold text-red-700 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            데이터 초기화 확인
+                        </h3>
+                        <button onclick="closeResetModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="p-6">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                            <p class="text-red-700 font-medium mb-2">다음 데이터가 모두 삭제됩니다:</p>
+                            <ul class="text-sm text-red-600 space-y-1">
+                                <li class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> 동기화된 모든 주문 데이터</li>
+                                <li class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> 동기화된 모든 카테고리 데이터</li>
+                                <li class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> 동기화 이력</li>
+                            </ul>
+                        </div>
+
+                        <p class="text-gray-700 mb-3">삭제를 진행하려면 아래에 <strong class="text-red-600">"지금삭제"</strong>를 입력하세요.</p>
+
+                        <input type="text" id="resetConfirmInput" placeholder="지금삭제"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-4"
+                               oninput="validateResetInput()">
+
+                        <div id="resetError" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"></div>
+
+                        <div id="resetLoading" class="hidden mb-4 flex items-center justify-center">
+                            <svg class="animate-spin h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="ml-2 text-gray-600">초기화 중...</span>
+                        </div>
+
+                        <div class="flex space-x-3">
+                            <button onclick="closeResetModal()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                                취소
+                            </button>
+                            <button id="resetConfirmBtn" onclick="confirmReset()" disabled
+                                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                삭제 실행
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            let eventSource = null;
+            let logEventSource = null;
+            let currentHistoryPage = 1;
+            let totalHistoryPages = 1;
+
+            // ========== 동기화 이력 페이징 ==========
+
+            async function loadHistoryPage(page) {
+                if (page < 1 || page > totalHistoryPages) return;
+                currentHistoryPage = page;
+
+                try {
+                    const response = await fetch(`/api/sync/status/history?page=${page}&size=20`);
+                    const result = await response.json();
+
+                    if (result.success && result.data) {
+                        const data = result.data;
+                        totalHistoryPages = data.totalPages || 1;
+                        updateHistoryTable(data.content);
+                        updateHistoryPagination(data);
+                    }
+                } catch (e) {
+                    console.error('동기화 이력 로드 실패:', e);
+                }
+            }
+
+            function updateHistoryTable(items) {
+                const tbody = document.getElementById('syncHistoryBody');
+                if (!items || items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">동기화 이력이 없습니다.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = items.map(status => {
+                    const typeClass = status.syncType === 'ORDERS' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+                    const typeName = status.syncType === 'ORDERS' ? '주문' : '카테고리';
+                    const modeClass = status.syncMode === 'AUTO' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
+                    const modeName = status.syncMode === 'AUTO' ? '자동' : '수동';
+
+                    let statusBadge = '';
+                    if (status.status === 'COMPLETED') {
+                        statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">완료</span>';
+                    } else if (status.status === 'FAILED') {
+                        statusBadge = '<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">실패</span>';
+                    } else if (status.status === 'RUNNING') {
+                        statusBadge = '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">진행 중</span>';
+                    }
+
+                    const startedAt = status.startedAt ? formatDateTime(status.startedAt) : '-';
+                    const completedAt = status.completedAt ? formatDateTime(status.completedAt) : '-';
+
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="flex items-center space-x-1">
+                                    <span class="px-2 py-1 ${typeClass} rounded text-xs font-medium">${typeName}</span>
+                                    <span class="px-2 py-1 ${modeClass} rounded text-xs font-medium">${modeName}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${statusBadge}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${status.startDate || '-'} ~ ${status.endDate || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="text-green-600">${status.syncedCount}건</span>
+                                <span class="text-gray-400 mx-1">/</span>
+                                <span class="text-red-600">${status.failedCount}건</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startedAt}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${completedAt}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            /**
+             * 시간 포맷 (서버에서 이미 KST로 포맷하여 전달)
+             * DB에 저장된 시간을 서버에서 직접 포맷하여 반환
+             */
+            function formatDateTime(dateTimeStr) {
+                if (!dateTimeStr) return '-';
+                // 서버에서 이미 KST로 포맷된 문자열이 전달됨
+                return dateTimeStr;
+            }
+
+            // 페이지 로드 시 시간 표시 (서버에서 이미 KST 포맷)
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('.kst-time').forEach(el => {
+                    const time = el.dataset.time;
+                    el.textContent = time || '-';
+                });
+            });
+
+            function updateHistoryPagination(data) {
+                const info = document.getElementById('historyPaginationInfo');
+                const prevBtn = document.getElementById('historyPrevBtn');
+                const nextBtn = document.getElementById('historyNextBtn');
+                const pageNumbers = document.getElementById('historyPageNumbers');
+
+                info.textContent = `총 ${data.totalElements}건 (${data.page}/${data.totalPages} 페이지)`;
+                prevBtn.disabled = data.page <= 1;
+                nextBtn.disabled = data.page >= data.totalPages;
+
+                // 페이지 번호 생성 (최대 5개)
+                const start = Math.max(1, data.page - 2);
+                const end = Math.min(data.totalPages, start + 4);
+
+                pageNumbers.innerHTML = '';
+                for (let i = start; i <= end; i++) {
+                    const btn = document.createElement('button');
+                    btn.textContent = i;
+                    btn.onclick = () => loadHistoryPage(i);
+                    btn.className = i === data.page
+                        ? 'px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                        : 'px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50';
+                    pageNumbers.appendChild(btn);
+                }
+            }
+
+            // ========== 스케줄러 로그 뷰어 ==========
+
+            // 로그 레벨별 색상 클래스
+            const logLevelColors = {
+                'DEBUG': 'text-gray-400',
+                'INFO': 'text-blue-400',
+                'WARN': 'text-yellow-400',
+                'ERROR': 'text-red-400',
+                'SUCCESS': 'text-green-400'
+            };
+
+            // 페이지 로드 시 최근 로그 불러오기 및 SSE 연결
+            document.addEventListener('DOMContentLoaded', function() {
+                loadRecentLogs();
+                connectLogStream();
+                loadHistoryPage(1);  // 동기화 이력 페이징 초기화
+            });
+
+            // 최근 로그 불러오기
+            async function loadRecentLogs() {
+                try {
+                    const response = await fetch('/api/sync/logs/recent?limit=50');
+                    const result = await response.json();
+
+                    if (result.logs && result.logs.length > 0) {
+                        const logContent = document.getElementById('schedulerLogContent');
+                        logContent.innerHTML = '';
+
+                        // 로그를 역순으로 추가 (오래된 것 먼저)
+                        result.logs.reverse().forEach(log => {
+                            appendLogEntry(log);
+                        });
+                    }
+                } catch (e) {
+                    console.error('최근 로그 불러오기 실패:', e);
+                }
+            }
+
+            // SSE 로그 스트림 연결
+            function connectLogStream() {
+                if (logEventSource) {
+                    logEventSource.close();
+                }
+
+                const statusEl = document.getElementById('logConnectionStatus');
+                statusEl.textContent = '연결 중...';
+                statusEl.className = 'px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-600';
+
+                logEventSource = new EventSource('/api/sync/logs/stream');
+
+                logEventSource.onopen = function() {
+                    statusEl.textContent = '연결됨';
+                    statusEl.className = 'px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600';
+                };
+
+                // log 이벤트 처리
+                logEventSource.addEventListener('log', function(e) {
+                    const logData = JSON.parse(e.data);
+                    appendLogEntry(logData);
+                });
+
+                logEventSource.onerror = function() {
+                    statusEl.textContent = '연결 끊김';
+                    statusEl.className = 'px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600';
+
+                    // 3초 후 재연결 시도
+                    setTimeout(() => {
+                        if (logEventSource.readyState === EventSource.CLOSED) {
+                            connectLogStream();
+                        }
+                    }, 3000);
+                };
+            }
+
+            // 로그 항목 추가
+            function appendLogEntry(log) {
+                const logContent = document.getElementById('schedulerLogContent');
+                const logViewer = document.getElementById('schedulerLogViewer');
+                const autoScroll = document.getElementById('autoScrollCheckbox').checked;
+
+                // 초기 메시지 제거
+                const placeholder = logContent.querySelector('.text-gray-500');
+                if (placeholder && placeholder.textContent.includes('스케줄러 로그가 여기에 표시됩니다')) {
+                    placeholder.remove();
+                }
+
+                // 로그 항목 생성
+                const logLine = document.createElement('div');
+                logLine.className = 'flex items-start';
+
+                const levelColor = logLevelColors[log.level] || 'text-gray-400';
+                const timeStr = log.time || log.timestamp?.split(' ')[1] || '';
+                const siteStr = log.siteCode ? `[${log.siteCode}]` : '';
+
+                logLine.innerHTML = `
+                    <span class="text-gray-500 mr-2">${timeStr}</span>
+                    <span class="${levelColor} w-14 flex-shrink-0">${log.level.padEnd(7)}</span>
+                    ${siteStr ? `<span class="text-cyan-400 mr-1">${siteStr}</span>` : ''}
+                    <span class="text-gray-200">${escapeHtml(log.message)}</span>
+                `;
+
+                logContent.appendChild(logLine);
+
+                // 최대 로그 수 제한 (화면에 200개까지만)
+                while (logContent.children.length > 200) {
+                    logContent.removeChild(logContent.firstChild);
+                }
+
+                // 자동 스크롤
+                if (autoScroll) {
+                    logViewer.scrollTop = logViewer.scrollHeight;
+                }
+            }
+
+            // HTML 이스케이프
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // 스케줄러 로그 지우기
+            async function clearSchedulerLogs() {
+                try {
+                    await fetch('/api/sync/logs/clear', { method: 'POST' });
+                    const logContent = document.getElementById('schedulerLogContent');
+                    logContent.innerHTML = '<div class="text-gray-500">로그가 초기화되었습니다.</div>';
+                } catch (e) {
+                    console.error('로그 지우기 실패:', e);
+                }
+            }
+
+            // ========== 스케줄러 관련 함수 ==========
+
+            async function enableSchedulerWithInterval() {
+                const btn = document.getElementById('schedulerEnableBtn');
+                const intervalSelect = document.getElementById('intervalSelect');
+                const interval = intervalSelect.value;
+
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch(`/api/sync/scheduler/enable?intervalMinutes=${interval}`, { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        location.reload();
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('스케줄러 활성화 중 오류가 발생했습니다.');
+                } finally {
+                    btn.disabled = false;
+                }
+            }
+
+            async function disableScheduler() {
+                const btn = document.getElementById('schedulerDisableBtn');
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/sync/scheduler/disable', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        location.reload();
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('스케줄러 비활성화 중 오류가 발생했습니다.');
+                } finally {
+                    btn.disabled = false;
+                }
+            }
+
+            async function toggleScheduler() {
+                const btn = document.getElementById('schedulerToggleBtn');
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/sync/scheduler/toggle', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        location.reload();
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('스케줄러 상태 변경 중 오류가 발생했습니다.');
+                } finally {
+                    btn.disabled = false;
+                }
+            }
+
+            async function runIncrementalSyncNow() {
+                if (!confirm('증분 동기화를 수동으로 실행하시겠습니까?')) return;
+
+                try {
+                    const response = await fetch('/api/sync/scheduler/run-now', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(`동기화 완료\n\n동기화: ${result.syncedCount}건\n실패: ${result.failedCount}건\n기간: ${result.startTime} ~ ${result.endTime}`);
+                        location.reload();
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('증분 동기화 실행 중 오류가 발생했습니다.');
+                }
+            }
+
+            async function refreshBatchToken() {
+                try {
+                    const response = await fetch('/api/sync/scheduler/refresh-token', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('토큰 갱신 중 오류가 발생했습니다.');
+                }
+            }
+
+            // ========== 수동 동기화 관련 함수 ==========
+
+            function startSync() {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressPanel = document.getElementById('progressPanel');
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+                const progressStats = document.getElementById('progressStats');
+                const serverRunningSync = document.getElementById('serverRunningSync');
+                const syncDays = document.getElementById('syncDaysSelect').value;
+
+                // 서버 렌더링된 진행중 표시 숨기기
+                if (serverRunningSync) {
+                    serverRunningSync.classList.add('hidden');
+                }
+
+                // 버튼 및 선택박스 비활성화
+                button.disabled = true;
+                document.getElementById('syncDaysSelect').disabled = true;
+                buttonText.textContent = '동기화 진행 중...';
+                syncIcon.classList.add('animate-spin');
+                resultDiv.classList.add('hidden');
+
+                // 진행상황 패널 표시 및 초기화
+                progressPanel.classList.remove('hidden');
+                progressBar.style.width = '0%';
+                progressBar.classList.remove('bg-green-500', 'bg-red-500');
+                progressBar.classList.add('bg-blue-500');
+                progressMessage.textContent = '연결 중...';
+                progressPercent.textContent = '0%';
+                progressStats.textContent = '';
+
+                // 기존 SSE 연결 종료
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                // SSE 연결 시작 (선택한 일수 파라미터 포함)
+                eventSource = new EventSource(`/api/sync/orders/stream?days=${syncDays}`);
+
+                // IN_PROGRESS 이벤트 처리
+                eventSource.addEventListener('in_progress', function(e) {
+                    const data = JSON.parse(e.data);
+                    updateProgress(data);
+                });
+
+                // COMPLETED 이벤트 처리
+                eventSource.addEventListener('completed', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleCompleted(data);
+                    eventSource.close();
+                });
+
+                // FAILED 이벤트 처리
+                eventSource.addEventListener('failed', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleFailed(data);
+                    eventSource.close();
+                });
+
+                // 에러 이벤트 처리
+                eventSource.addEventListener('error', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleFailed(data);
+                    eventSource.close();
+                });
+
+                // 연결 오류 처리
+                eventSource.onerror = function(e) {
+                    console.error('SSE connection error:', e);
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        return; // 정상 종료
+                    }
+                    handleFailed({
+                        status: 'FAILED',
+                        message: 'SSE 연결이 끊어졌습니다.',
+                        progress: 0
+                    });
+                    eventSource.close();
+                };
+            }
+
+            function updateProgress(data) {
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+
+                progressBar.style.width = data.progress + '%';
+                progressMessage.textContent = data.message;
+                progressPercent.textContent = data.progress + '%';
+            }
+
+            function handleCompleted(data) {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+                const progressStats = document.getElementById('progressStats');
+                const progressSpinner = document.getElementById('progressSpinner');
+
+                // 진행바 완료 상태
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-green-500');
+                progressMessage.textContent = data.message;
+                progressPercent.textContent = '100%';
+                progressSpinner.classList.remove('animate-spin');
+
+                // 결과 통계 표시
+                if (data.result) {
+                    progressStats.textContent = `신규: ${data.result.newRecords}건, 업데이트: ${data.result.updatedRecords}건, 실패: ${data.result.failedRecords}건`;
+                }
+
+                // 결과 메시지 표시
+                resultDiv.classList.remove('hidden');
+                resultDiv.className = 'mt-4 p-4 rounded-lg bg-green-50 border border-green-200 text-green-700';
+                resultDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span>${data.message}</span>
+                    </div>
+                    <div class="mt-2 text-sm">
+                        총 ${data.result?.totalRecords || 0}건 처리 (신규: ${data.result?.newRecords || 0}건, 업데이트: ${data.result?.updatedRecords || 0}건, 실패: ${data.result?.failedRecords || 0}건)
+                    </div>
+                `;
+
+                // 페이지 새로고침
+                setTimeout(() => location.reload(), 3000);
+            }
+
+            function handleFailed(data) {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressPanel = document.getElementById('progressPanel');
+                const progressBar = document.getElementById('progressBar');
+                const progressSpinner = document.getElementById('progressSpinner');
+
+                // 진행바 실패 상태
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-red-500');
+                progressSpinner.classList.remove('animate-spin');
+
+                // 결과 메시지 표시
+                resultDiv.classList.remove('hidden');
+                resultDiv.className = 'mt-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700';
+                resultDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        <span>${data.message}</span>
+                    </div>
+                `;
+
+                // 버튼 및 선택박스 상태 복원
+                button.disabled = false;
+                document.getElementById('syncDaysSelect').disabled = false;
+                buttonText.textContent = '수동 동기화';
+                syncIcon.classList.remove('animate-spin');
+            }
+
+            // 페이지 떠날 때 SSE 연결 종료
+            window.addEventListener('beforeunload', function() {
+                if (eventSource) {
+                    eventSource.close();
+                }
+                if (logEventSource) {
+                    logEventSource.close();
+                }
+            });
+
+            // ========== 초기화 모달 함수들 ==========
+
+            // 초기화 모달 열기
+            function openResetModal() {
+                document.getElementById('resetModal').classList.remove('hidden');
+                document.getElementById('resetConfirmInput').value = '';
+                document.getElementById('resetConfirmBtn').disabled = true;
+                document.getElementById('resetError').classList.add('hidden');
+                document.getElementById('resetLoading').classList.add('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+
+            // 초기화 모달 닫기
+            function closeResetModal() {
+                document.getElementById('resetModal').classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            // 입력값 검증
+            function validateResetInput() {
+                const input = document.getElementById('resetConfirmInput').value;
+                const btn = document.getElementById('resetConfirmBtn');
+                btn.disabled = input !== '지금삭제';
+            }
+
+            // 초기화 실행
+            async function confirmReset() {
+                const input = document.getElementById('resetConfirmInput').value;
+                const errorDiv = document.getElementById('resetError');
+                const loadingDiv = document.getElementById('resetLoading');
+                const confirmBtn = document.getElementById('resetConfirmBtn');
+
+                if (input !== '지금삭제') {
+                    errorDiv.textContent = '확인 문구가 일치하지 않습니다.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+
+                // UI 상태 변경
+                errorDiv.classList.add('hidden');
+                loadingDiv.classList.remove('hidden');
+                confirmBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/sync/reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ confirmText: input })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // 성공 - 페이지 새로고침
+                        closeResetModal();
+                        alert('초기화가 완료되었습니다.\n\n삭제된 항목:\n- 주문: ' + result.deletedCounts.orders + '건\n- 카테고리: ' + result.deletedCounts.categories + '건\n- 동기화 이력: ' + result.deletedCounts.syncHistory + '건');
+                        location.reload();
+                    } else {
+                        loadingDiv.classList.add('hidden');
+                        confirmBtn.disabled = false;
+                        errorDiv.textContent = result.message;
+                        errorDiv.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    loadingDiv.classList.add('hidden');
+                    confirmBtn.disabled = false;
+                    errorDiv.textContent = '초기화 중 오류가 발생했습니다.';
+                    errorDiv.classList.remove('hidden');
+                }
+            }
+
+            // ESC 키로 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeResetModal();
+                }
+            });
+
+            // ========== 알림톡 테스트 전화번호 저장 ==========
+            async function saveTestPhone() {
+                const input = document.getElementById('alimtalkTestPhone');
+                const btn = document.getElementById('saveTestPhoneBtn');
+                const phone = input.value.trim();
+
+                btn.disabled = true;
+                btn.textContent = '저장 중...';
+
+                try {
+                    const response = await fetch('/api/sync/alimtalk/test-phone', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone: phone })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message);
+                        input.value = result.phone || '';
+                    } else {
+                        alert('오류: ' + result.message);
+                    }
+                } catch (e) {
+                    alert('저장 중 오류가 발생했습니다.');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '저장';
+                }
+            }
+
+            // ========== 테이블 샘플 쿼리 ==========
+
+            // 쿼리 표시 업데이트
+            function updateQueryDisplay() {
+                const table = document.getElementById('sampleTable').value;
+                const order = document.getElementById('sampleOrder').value;
+                const orderDir = order === 'ASC' ? 'ASC' : 'DESC';
+                const orderCol = table === 'sync_orders' ? 'order_time' : 'created_at';
+                document.getElementById('queryCode').textContent =
+                    `SELECT * FROM ${table} WHERE site_code = '...' ORDER BY ${orderCol} ${orderDir} LIMIT 10`;
+            }
+
+            // 이벤트 리스너 등록
+            document.addEventListener('DOMContentLoaded', function() {
+                const sampleTable = document.getElementById('sampleTable');
+                const sampleOrder = document.getElementById('sampleOrder');
+                if (sampleTable) sampleTable.addEventListener('change', updateQueryDisplay);
+                if (sampleOrder) sampleOrder.addEventListener('change', updateQueryDisplay);
+            });
+
+            // 샘플 쿼리 실행
+            async function executeSampleQuery() {
+                const table = document.getElementById('sampleTable').value;
+                const order = document.getElementById('sampleOrder').value;
+
+                try {
+                    const response = await fetch(`/api/sync/sample-query?table=${table}&order=${order}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        displaySampleResults(result.data);
+                    } else {
+                        showSampleError(result.message);
+                    }
+                } catch (e) {
+                    showSampleError('쿼리 실행 중 오류가 발생했습니다.');
+                }
+            }
+
+            // 결과 표시
+            function displaySampleResults(data) {
+                const resultDiv = document.getElementById('sampleQueryResult');
+                const errorDiv = document.getElementById('sampleQueryError');
+                const headerRow = document.getElementById('resultHeader');
+                const bodyDiv = document.getElementById('resultBody');
+
+                errorDiv.classList.add('hidden');
+                resultDiv.classList.remove('hidden');
+
+                document.getElementById('resultCount').textContent = data.length;
+
+                // 헤더 생성
+                headerRow.innerHTML = '';
+                if (data.length > 0) {
+                    Object.keys(data[0]).forEach(key => {
+                        const th = document.createElement('th');
+                        th.className = 'px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap';
+                        th.textContent = key;
+                        headerRow.appendChild(th);
+                    });
+                }
+
+                // 데이터 생성
+                bodyDiv.innerHTML = '';
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    Object.values(row).forEach(value => {
+                        const td = document.createElement('td');
+                        td.className = 'px-2 py-2 text-xs text-gray-600';
+                        td.textContent = value !== null ? String(value) : '-';
+                        td.title = value !== null ? String(value) : '';
+                        tr.appendChild(td);
+                    });
+                    bodyDiv.appendChild(tr);
+                });
+            }
+
+            // 에러 표시
+            function showSampleError(message) {
+                const resultDiv = document.getElementById('sampleQueryResult');
+                const errorDiv = document.getElementById('sampleQueryError');
+
+                resultDiv.classList.add('hidden');
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = message;
+            }
+        </script>
+    </th:block>
+</body>
+</html>

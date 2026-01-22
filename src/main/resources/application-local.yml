@@ -1,0 +1,53 @@
+server:
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: ordersync-office
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3308/ordersync_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:ordersync}
+    password: ${SPRING_DATASOURCE_PASSWORD:ordersync123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  thymeleaf:
+    cache: false
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/**/*.xml
+  type-aliases-package: org.webnori.ordersyncoffice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /docs
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+imweb:
+  client-id: ${IMWEB_CLIENT_ID:69aaabf9-6dfa-4176-90b4-4dd5f3a17266}
+  client-secret: ${IMWEB_CLIENT_SECRET:3c61b5aa-0301-47b2-ac75-162a92de6d0f}
+  redirect-uri: ${IMWEB_REDIRECT_URI:https://904ab41774d4.ngrok-free.app/oauth/callback}
+  api-base-url: https://openapi.imweb.me
+
+# 앱 로그인 비밀번호 (관리자 이메일 + 사이트코드 + 비밀번호)
+app:
+  login-password: ${APP_LOGIN_PASSWORD:test1234}
+
+logging:
+  level:
+    org.webnori.ordersyncoffice: INFO
+    org.mybatis: DEBUG
+    org.flywaydb: INFO

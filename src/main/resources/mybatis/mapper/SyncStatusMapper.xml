@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.SyncStatusMapper">
+
+    <resultMap id="SyncStatusResultMap" type="org.webnori.ordersyncoffice.domain.SyncStatus">
+        <id property="id" column="id"/>
+        <result property="siteCode" column="site_code"/>
+        <result property="syncType" column="sync_type"/>
+        <result property="syncMode" column="sync_mode"/>
+        <result property="status" column="status"/>
+        <result property="totalCount" column="total_count"/>
+        <result property="syncedCount" column="synced_count"/>
+        <result property="failedCount" column="failed_count"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="completedAt" column="completed_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findBySiteCode" resultMap="SyncStatusResultMap">
+        SELECT * FROM sync_status
+        WHERE site_code = #{siteCode}
+        ORDER BY started_at DESC
+        LIMIT 20
+    </select>
+
+    <!-- 페이징된 동기화 이력 조회 -->
+    <select id="findBySiteCodePaged" resultMap="SyncStatusResultMap">
+        SELECT * FROM sync_status
+        WHERE site_code = #{siteCode}
+        ORDER BY started_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 동기화 이력 총 개수 -->
+    <select id="countBySiteCode" resultType="long">
+        SELECT COUNT(*) FROM sync_status
+        WHERE site_code = #{siteCode}
+    </select>
+
+    <select id="findLatestBySiteCodeAndType" resultMap="SyncStatusResultMap">
+        SELECT * FROM sync_status
+        WHERE site_code = #{siteCode} AND sync_type = #{syncType}
+        ORDER BY started_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="findRunningBySiteCode" resultMap="SyncStatusResultMap">
+        SELECT * FROM sync_status
+        WHERE site_code = #{siteCode} AND status = 'RUNNING'
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="org.webnori.ordersyncoffice.domain.SyncStatus" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sync_status (site_code, sync_type, sync_mode, status, total_count, synced_count, failed_count, start_date, end_date)
+        VALUES (#{siteCode}, #{syncType}, #{syncMode}, #{status}, #{totalCount}, #{syncedCount}, #{failedCount}, #{startDate}, #{endDate})
+    </insert>
+
+    <!-- 마지막 완료된 동기화의 종료일시 조회 (자동 동기화 기준 시점용) -->
+    <!-- end_date: 동기화 기간의 끝 시점 (KST 문자열, 예: "2025-12-21 03:07:37") -->
+    <!-- 완료시간(completed_at)이 아닌 동기화 기간의 끝(end_date)을 사용해야 주문 누락 방지 -->
+    <select id="findLastSyncEndDate" resultType="java.lang.String">
+        SELECT end_date FROM sync_status
+        WHERE site_code = #{siteCode}
+          AND sync_type = #{syncType}
+          AND status = 'COMPLETED'
+          AND end_date IS NOT NULL
+        ORDER BY completed_at DESC
+        LIMIT 1
+    </select>
+
+    <!-- 자동 동기화 마지막 실행 기록 1개만 유지 (0건 기록 업데이트용) -->
+    <select id="findLastAutoSync" resultMap="SyncStatusResultMap">
+        SELECT * FROM sync_status
+        WHERE site_code = #{siteCode}
+          AND sync_type = #{syncType}
+          AND sync_mode = 'AUTO'
+        ORDER BY started_at DESC
+        LIMIT 1
+    </select>
+
+    <!-- 자동 동기화 마지막 실행 기록 업데이트 (0건일 때 기존 기록 갱신) -->
+    <update id="updateAutoSyncLastRun">
+        UPDATE sync_status SET
+            status = 'COMPLETED',
+            started_at = CURRENT_TIMESTAMP,
+            completed_at = CURRENT_TIMESTAMP,
+            start_date = #{startDate},
+            end_date = #{endDate},
+            synced_count = 0,
+            failed_count = 0,
+            error_message = NULL
+        WHERE id = #{id}
+    </update>
+
+    <!-- 자동 동기화 마지막 실행 기록 업데이트 (동기화 건수 포함) -->
+    <!-- AUTO 동기화는 새 이력을 쌓지 않고 마지막 기록만 업데이트 -->
+    <update id="updateAutoSyncWithCount">
+        UPDATE sync_status SET
+            status = 'COMPLETED',
+            started_at = CURRENT_TIMESTAMP,
+            completed_at = CURRENT_TIMESTAMP,
+            start_date = #{startDate},
+            end_date = #{endDate},
+            synced_count = #{syncedCount},
+            failed_count = #{failedCount},
+            error_message = NULL
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE sync_status SET
+            status = #{status},
+            synced_count = #{syncedCount},
+            failed_count = #{failedCount}
+        WHERE id = #{id}
+    </update>
+
+    <update id="complete">
+        UPDATE sync_status SET
+            status = #{status},
+            synced_count = #{syncedCount},
+            failed_count = #{failedCount},
+            error_message = #{errorMessage},
+            completed_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 5분 이상 경과한 RUNNING 상태를 FAILED로 변경 -->
+    <update id="failStaleRunning">
+        UPDATE sync_status SET
+            status = 'FAILED',
+            error_message = '동기화 시간 초과 (자동 실패 처리)',
+            completed_at = CURRENT_TIMESTAMP
+        WHERE site_code = #{siteCode}
+          AND status = 'RUNNING'
+          AND started_at &lt; DATE_SUB(NOW(), INTERVAL #{minutesThreshold} MINUTE)
+    </update>
+
+    <delete id="deleteAllBySiteCode">
+        DELETE FROM sync_status WHERE site_code = #{siteCode}
+    </delete>
+
+</mapper>

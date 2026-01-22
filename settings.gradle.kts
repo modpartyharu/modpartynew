@@ -1,0 +1,1 @@
+rootProject.name = "imweb-order-sync-office"

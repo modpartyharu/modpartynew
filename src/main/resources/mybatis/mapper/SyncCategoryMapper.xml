@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.SyncCategoryMapper">
+
+    <resultMap id="SyncCategoryResultMap" type="org.webnori.ordersyncoffice.domain.SyncCategory">
+        <id property="id" column="id"/>
+        <result property="siteCode" column="site_code"/>
+        <result property="categoryCode" column="category_code"/>
+        <result property="name" column="name"/>
+        <result property="parentCode" column="parent_code"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findBySiteCode" resultMap="SyncCategoryResultMap">
+        SELECT * FROM sync_categories
+        WHERE site_code = #{siteCode}
+        ORDER BY name
+    </select>
+
+    <select id="findBySiteCodeAndCategoryCode" resultMap="SyncCategoryResultMap">
+        SELECT * FROM sync_categories
+        WHERE site_code = #{siteCode} AND category_code = #{categoryCode}
+    </select>
+
+    <insert id="upsert" parameterType="org.webnori.ordersyncoffice.domain.SyncCategory">
+        INSERT INTO sync_categories (site_code, category_code, name, parent_code)
+        VALUES (#{siteCode}, #{categoryCode}, #{name}, #{parentCode})
+        ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            parent_code = VALUES(parent_code),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <delete id="deleteAllBySiteCode">
+        DELETE FROM sync_categories WHERE site_code = #{siteCode}
+    </delete>
+
+</mapper>

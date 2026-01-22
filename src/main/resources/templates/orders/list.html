@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>주문 조회</title>
+</head>
+<body>
+    <h1 layout:fragment="page-title">주문 조회</h1>
+
+    <div layout:fragment="content">
+        <div class="space-y-6">
+            <!-- 검색 필터 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <form th:action="@{/api-view/orders}" method="get" class="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">주문 상태</label>
+                        <select name="orderSectionStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">전체</option>
+                            <option value="PRODUCT_PREPARATION" th:selected="${orderSectionStatus == 'PRODUCT_PREPARATION'}">상품준비중</option>
+                            <option value="DELIVERY_PREPARATION" th:selected="${orderSectionStatus == 'DELIVERY_PREPARATION'}">배송준비중</option>
+                            <option value="DELIVERY_ING" th:selected="${orderSectionStatus == 'DELIVERY_ING'}">배송중</option>
+                            <option value="DELIVERY_COMPLETE" th:selected="${orderSectionStatus == 'DELIVERY_COMPLETE'}">배송완료</option>
+                            <option value="CANCEL_REQUEST" th:selected="${orderSectionStatus == 'CANCEL_REQUEST'}">취소요청</option>
+                            <option value="CANCEL_COMPLETE" th:selected="${orderSectionStatus == 'CANCEL_COMPLETE'}">취소완료</option>
+                            <option value="RETURN_REQUEST" th:selected="${orderSectionStatus == 'RETURN_REQUEST'}">반품요청</option>
+                            <option value="RETURN_COMPLETE" th:selected="${orderSectionStatus == 'RETURN_COMPLETE'}">반품완료</option>
+                            <option value="EXCHANGE_REQUEST" th:selected="${orderSectionStatus == 'EXCHANGE_REQUEST'}">교환요청</option>
+                            <option value="EXCHANGE_COMPLETE" th:selected="${orderSectionStatus == 'EXCHANGE_COMPLETE'}">교환완료</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">결제 상태</label>
+                        <select name="paymentStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">전체</option>
+                            <option value="PAYMENT_PREPARATION" th:selected="${paymentStatus == 'PAYMENT_PREPARATION'}">결제대기</option>
+                            <option value="PAYMENT_COMPLETE" th:selected="${paymentStatus == 'PAYMENT_COMPLETE'}">결제완료</option>
+                            <option value="PAYMENT_OVERDUE" th:selected="${paymentStatus == 'PAYMENT_OVERDUE'}">결제기한초과</option>
+                            <option value="CANCELLED_BEFORE_DEPOSIT" th:selected="${paymentStatus == 'CANCELLED_BEFORE_DEPOSIT'}">입금전취소</option>
+                            <option value="REFUND_PROCESSING" th:selected="${paymentStatus == 'REFUND_PROCESSING'}">환불처리중</option>
+                            <option value="REFUND_COMPLETE" th:selected="${paymentStatus == 'REFUND_COMPLETE'}">환불완료</option>
+                            <option value="PARTIAL_REFUND_COMPLETE" th:selected="${paymentStatus == 'PARTIAL_REFUND_COMPLETE'}">부분환불완료</option>
+                            <option value="PAYMENT_FAILED" th:selected="${paymentStatus == 'PAYMENT_FAILED'}">결제실패</option>
+                            <option value="PAYMENT_EXIT" th:selected="${paymentStatus == 'PAYMENT_EXIT'}">결제이탈</option>
+                            <option value="REFUND_FAILED" th:selected="${paymentStatus == 'REFUND_FAILED'}">환불실패</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">국가</label>
+                        <select name="country" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="">전체</option>
+                            <option value="KR" th:selected="${country == 'KR'}">한국</option>
+                            <option value="US" th:selected="${country == 'US'}">미국</option>
+                            <option value="JP" th:selected="${country == 'JP'}">일본</option>
+                            <option value="CN" th:selected="${country == 'CN'}">중국</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">시작일 (KST)</label>
+                        <input type="datetime-local" name="startWtime" th:value="${startWtime}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">종료일 (KST)</label>
+                        <input type="datetime-local" name="endWtime" th:value="${endWtime}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">페이지 크기</label>
+                        <select name="limit" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="10" th:selected="${limit == 10}">10개</option>
+                            <option value="20" th:selected="${limit == 20}">20개</option>
+                            <option value="50" th:selected="${limit == 50}">50개</option>
+                            <option value="100" th:selected="${limit == 100}">100개</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            검색
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 주문 목록 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900">주문 목록</h2>
+                    <span class="text-sm text-gray-500">
+                        총 <span th:text="${totalCount}">0</span>건
+                    </span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">주문번호</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">주문일시(KST)</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">주문자</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">결제금액</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">결제상태</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">국가</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">주문상태</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr th:if="${orders == null || orders.isEmpty()}">
+                                <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                                    주문 내역이 없습니다.
+                                </td>
+                            </tr>
+                            <tr th:each="order : ${orders}" class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900" th:text="${order.orderNo}">-</div>
+                                    <div class="text-xs text-gray-500" th:text="${order.channelOrderNo}">-</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="utc-to-kst" th:data-utc="${order.wtime}" th:text="${order.wtime}">-</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900" th:text="${order.ordererName}">-</div>
+                                    <div class="text-xs text-gray-500" th:text="${order.ordererCall}">-</div>
+                                    <div class="text-xs text-gray-400" th:text="${order.ordererEmail}">-</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900" th:text="${order.totalPaymentPrice != null} ? ${#numbers.formatInteger(order.totalPaymentPrice, 0, 'COMMA')} + '원' : '-'">0</div>
+                                    <div class="text-xs text-gray-500">
+                                        <span th:if="${order.totalDiscountPrice != null && order.totalDiscountPrice > 0}" class="text-red-500">
+                                            할인: <span th:text="${#numbers.formatInteger(order.totalDiscountPrice, 0, 'COMMA')}">0</span>원
+                                        </span>
+                                    </div>
+                                </td>
+                                <!-- 결제상태 -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <th:block th:if="${order.payments != null && !order.payments.isEmpty()}">
+                                        <div th:each="payment : ${order.payments}" class="mb-1">
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                  th:classappend="${payment.paymentStatus == 'PAYMENT_COMPLETE' ? 'bg-green-100 text-green-800' :
+                                                                   (payment.paymentStatus == 'PAYMENT_PREPARATION' ? 'bg-yellow-100 text-yellow-800' :
+                                                                   (payment.paymentStatus == 'REFUND_COMPLETE' or payment.paymentStatus == 'PARTIAL_REFUND_COMPLETE' ? 'bg-red-100 text-red-800' :
+                                                                   (payment.paymentStatus == 'REFUND_PROCESSING' ? 'bg-orange-100 text-orange-800' :
+                                                                   (payment.paymentStatus == 'CANCELLED_BEFORE_DEPOSIT' or payment.paymentStatus == 'PAYMENT_OVERDUE' ? 'bg-gray-100 text-gray-800' : 'bg-purple-100 text-purple-800'))))}"
+                                                  th:text="${payment.paymentStatus == 'PAYMENT_COMPLETE' ? '결제완료' :
+                                                            (payment.paymentStatus == 'PAYMENT_PREPARATION' ? '결제대기' :
+                                                            (payment.paymentStatus == 'REFUND_COMPLETE' ? '환불완료' :
+                                                            (payment.paymentStatus == 'PARTIAL_REFUND_COMPLETE' ? '부분환불' :
+                                                            (payment.paymentStatus == 'REFUND_PROCESSING' ? '환불처리중' :
+                                                            (payment.paymentStatus == 'CANCELLED_BEFORE_DEPOSIT' ? '입금전취소' :
+                                                            (payment.paymentStatus == 'PAYMENT_OVERDUE' ? '기한초과' :
+                                                            (payment.paymentStatus == 'PAYMENT_FAILED' ? '결제실패' :
+                                                            (payment.paymentStatus == 'PAYMENT_EXIT' ? '결제이탈' : payment.paymentStatus))))))))}">-</span>
+                                        </div>
+                                    </th:block>
+                                    <span th:if="${order.payments == null || order.payments.isEmpty()}" class="text-xs text-gray-400">-</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-sm" th:text="${order.country}">-</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <!-- 섹션별 주문 상태 표시 -->
+                                    <th:block th:if="${order.sections != null && !order.sections.isEmpty()}">
+                                        <div th:each="section, sectionStat : ${order.sections}" th:if="${sectionStat.index < 2}" class="mb-1">
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                  th:classappend="${section.orderSectionStatus == 'DELIVERY_COMPLETE' ? 'bg-green-100 text-green-800' :
+                                                                   (section.orderSectionStatus == 'DELIVERY_ING' ? 'bg-blue-100 text-blue-800' :
+                                                                   (section.orderSectionStatus == 'DELIVERY_PREPARATION' ? 'bg-indigo-100 text-indigo-800' :
+                                                                   (section.orderSectionStatus == 'PRODUCT_PREPARATION' ? 'bg-yellow-100 text-yellow-800' :
+                                                                   (section.orderSectionStatus == 'CANCEL_REQUEST' or section.orderSectionStatus == 'CANCEL_COMPLETE' ? 'bg-red-100 text-red-800' :
+                                                                   (section.orderSectionStatus == 'RETURN_REQUEST' or section.orderSectionStatus == 'RETURN_COMPLETE' ? 'bg-orange-100 text-orange-800' :
+                                                                   (section.orderSectionStatus == 'EXCHANGE_REQUEST' or section.orderSectionStatus == 'EXCHANGE_COMPLETE' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'))))))}"
+                                                  th:text="${section.orderSectionStatus == 'PRODUCT_PREPARATION' ? '상품준비중' :
+                                                            (section.orderSectionStatus == 'DELIVERY_PREPARATION' ? '배송준비중' :
+                                                            (section.orderSectionStatus == 'DELIVERY_ING' ? '배송중' :
+                                                            (section.orderSectionStatus == 'DELIVERY_COMPLETE' ? '배송완료' :
+                                                            (section.orderSectionStatus == 'CANCEL_REQUEST' ? '취소요청' :
+                                                            (section.orderSectionStatus == 'CANCEL_COMPLETE' ? '취소완료' :
+                                                            (section.orderSectionStatus == 'RETURN_REQUEST' ? '반품요청' :
+                                                            (section.orderSectionStatus == 'RETURN_COMPLETE' ? '반품완료' :
+                                                            (section.orderSectionStatus == 'EXCHANGE_REQUEST' ? '교환요청' :
+                                                            (section.orderSectionStatus == 'EXCHANGE_COMPLETE' ? '교환완료' : section.orderSectionStatus)))))))))}">-</span>
+                                        </div>
+                                        <span th:if="${order.sections.size() > 2}" class="text-xs text-gray-400">외 <span th:text="${order.sections.size() - 2}">0</span>건</span>
+                                    </th:block>
+                                    <!-- 섹션이 없는 경우 기존 orderStatus 표시 -->
+                                    <th:block th:if="${order.sections == null || order.sections.isEmpty()}">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              th:classappend="${order.orderStatus == 'COMPLETE' ? 'bg-green-100 text-green-800' :
+                                                               (order.orderStatus == 'OPEN' ? 'bg-blue-100 text-blue-800' :
+                                                               (order.orderStatus == 'CANCEL' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'))}"
+                                              th:text="${order.orderStatus == 'COMPLETE' ? '완료' : (order.orderStatus == 'OPEN' ? '진행중' : (order.orderStatus == 'CANCEL' ? '취소' : order.orderStatus))}">-</span>
+                                    </th:block>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        <span th:text="${order.orderType}">-</span>
+                                        <span th:if="${order.isMember == 'Y'}" class="ml-1 text-blue-500">[회원]</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-col space-y-1">
+                                        <button type="button"
+                                                th:onclick="'showProfileModal(' + ${order.orderNo} + ')'"
+                                                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors">
+                                            프로필 보기
+                                        </button>
+                                        <button type="button"
+                                                th:onclick="'showProductModal(' + ${order.orderNo} + ')'"
+                                                class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
+                                            상품 보기
+                                        </button>
+                                        <a th:if="${order.adminUrl}" th:href="${order.adminUrl}" target="_blank"
+                                           class="text-xs text-primary hover:underline text-center">관리자</a>
+                                    </div>
+                                    <!-- 프로필 모달 데이터 (숨김) -->
+                                    <div th:id="'profile-data-' + ${order.orderNo}" class="hidden"
+                                         th:attr="data-orderer-name=${order.ordererName},
+                                                  data-orderer-email=${order.ordererEmail},
+                                                  data-orderer-call=${order.ordererCall},
+                                                  data-member-uid=${order.memberUid}">
+                                        <!-- 옵션 정보에서 성별/나이 추출 -->
+                                        <th:block th:if="${order.sections != null && !order.sections.isEmpty()}">
+                                            <th:block th:each="section : ${order.sections}">
+                                                <th:block th:if="${section.sectionItems != null}">
+                                                    <th:block th:each="item : ${section.sectionItems}">
+                                                        <th:block th:if="${item.productInfo != null && item.productInfo.optionInfo != null}">
+                                                            <span th:each="entry : ${item.productInfo.optionInfo}"
+                                                                  th:data-option-key="${entry.key}"
+                                                                  th:data-option-value="${entry.value}"></span>
+                                                        </th:block>
+                                                    </th:block>
+                                                </th:block>
+                                                <!-- 배송지 정보 -->
+                                                <th:block th:if="${section.delivery != null}">
+                                                    <span th:data-delivery-name="${section.delivery.receiverName}"
+                                                          th:data-delivery-call="${section.delivery.receiverCall}"
+                                                          th:data-delivery-zipcode="${section.delivery.zipcode}"
+                                                          th:data-delivery-addr1="${section.delivery.addr1}"
+                                                          th:data-delivery-addr2="${section.delivery.addr2}"
+                                                          th:data-delivery-memo="${section.delivery.memo}"></span>
+                                                </th:block>
+                                            </th:block>
+                                        </th:block>
+                                    </div>
+                                    <!-- 상품 모달 데이터 (숨김) -->
+                                    <div th:id="'product-data-' + ${order.orderNo}" class="hidden">
+                                        <th:block th:if="${order.sections != null && !order.sections.isEmpty()}">
+                                            <th:block th:each="section, sectionStat : ${order.sections}">
+                                                <th:block th:if="${section.sectionItems != null}">
+                                                    <th:block th:each="item, itemStat : ${section.sectionItems}">
+                                                        <th:block th:if="${item.productInfo != null}">
+                                                            <div class="product-item"
+                                                                 th:data-prod-no="${item.productInfo.prodNo}"
+                                                                 th:data-prod-name="${item.productInfo.prodName}"
+                                                                 th:data-item-price="${item.productInfo.itemPrice}"
+                                                                 th:data-base-price="${item.productInfo.baseItemPrice}"
+                                                                 th:data-qty="${item.qty}"
+                                                                 th:data-section-status="${section.orderSectionStatus}">
+                                                                <th:block th:if="${item.productInfo.optionInfo != null}">
+                                                                    <span th:each="opt : ${item.productInfo.optionInfo}"
+                                                                          class="product-option"
+                                                                          th:data-opt-key="${opt.key}"
+                                                                          th:data-opt-value="${opt.value}"></span>
+                                                                </th:block>
+                                                            </div>
+                                                        </th:block>
+                                                    </th:block>
+                                                </th:block>
+                                            </th:block>
+                                        </th:block>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 페이지네이션 -->
+                <div th:if="${totalPage != null && totalPage > 1}" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div class="text-sm text-gray-500">
+                        페이지 <span th:text="${currentPage}">1</span> / <span th:text="${totalPage}">1</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <a th:if="${currentPage > 1}"
+                           th:href="@{/api-view/orders(page=${currentPage - 1}, limit=${limit}, startWtime=${startWtime}, endWtime=${endWtime}, orderSectionStatus=${orderSectionStatus}, paymentStatus=${paymentStatus}, country=${country})}"
+                           class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">이전</a>
+                        <a th:if="${currentPage < totalPage}"
+                           th:href="@{/api-view/orders(page=${currentPage + 1}, limit=${limit}, startWtime=${startWtime}, endWtime=${endWtime}, orderSectionStatus=${orderSectionStatus}, paymentStatus=${paymentStatus}, country=${country})}"
+                           class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">다음</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 프로필 모달 -->
+        <div id="profileModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+                <!-- 배경 오버레이 -->
+                <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeProfileModal()"></div>
+
+                <!-- 모달 콘텐츠 -->
+                <div class="relative inline-block px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+                    <div class="absolute top-0 right-0 pt-4 pr-4">
+                        <button type="button" onclick="closeProfileModal()" class="text-gray-400 hover:text-gray-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="sm:flex sm:items-start">
+                        <!-- 성별 아바타 -->
+                        <div id="modal-avatar" class="flex items-center justify-center flex-shrink-0 w-16 h-16 mx-auto rounded-full sm:mx-0 bg-gray-100">
+                            <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
+                            <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title">주문자 프로필</h3>
+                            <div class="mt-4 space-y-4">
+                                <!-- 회원 정보 (API 조회) -->
+                                <div id="member-info-section" class="bg-purple-50 rounded-lg p-4 hidden">
+                                    <h4 class="text-sm font-semibold text-purple-700 mb-2">
+                                        <span class="inline-flex items-center">
+                                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                                            </svg>
+                                            회원 정보 (API)
+                                        </span>
+                                    </h4>
+                                    <dl class="grid grid-cols-2 gap-2 text-sm">
+                                        <dt class="text-gray-500">성별</dt>
+                                        <dd class="text-gray-900" id="modal-member-gender">-</dd>
+                                        <dt class="text-gray-500">생년월일</dt>
+                                        <dd class="text-gray-900" id="modal-member-birth">-</dd>
+                                        <dt class="text-gray-500">나이</dt>
+                                        <dd class="text-gray-900" id="modal-member-age">-</dd>
+                                        <dt class="text-gray-500">가입일</dt>
+                                        <dd class="text-gray-900" id="modal-member-join">-</dd>
+                                        <dt class="text-gray-500">포인트</dt>
+                                        <dd class="text-gray-900" id="modal-member-point">-</dd>
+                                        <dt class="text-gray-500">소셜로그인</dt>
+                                        <dd class="text-gray-900" id="modal-member-social">-</dd>
+                                    </dl>
+                                </div>
+
+                                <!-- 기본 정보 -->
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <h4 class="text-sm font-semibold text-gray-700 mb-2">기본 정보</h4>
+                                    <dl class="grid grid-cols-2 gap-2 text-sm">
+                                        <dt class="text-gray-500">이름</dt>
+                                        <dd class="text-gray-900" id="modal-name">-</dd>
+                                        <dt class="text-gray-500">이메일</dt>
+                                        <dd class="text-gray-900" id="modal-email">-</dd>
+                                        <dt class="text-gray-500">연락처</dt>
+                                        <dd class="text-gray-900" id="modal-call">-</dd>
+                                    </dl>
+                                </div>
+
+                                <!-- 프로필 정보 (옵션에서 추출) -->
+                                <div class="bg-blue-50 rounded-lg p-4">
+                                    <h4 class="text-sm font-semibold text-blue-700 mb-2">주문 옵션 정보</h4>
+                                    <dl class="grid grid-cols-2 gap-2 text-sm">
+                                        <dt class="text-gray-500">성별</dt>
+                                        <dd class="text-gray-900" id="modal-gender">-</dd>
+                                        <dt class="text-gray-500">출생년도</dt>
+                                        <dd class="text-gray-900" id="modal-birth">-</dd>
+                                        <dt class="text-gray-500">나이(추정)</dt>
+                                        <dd class="text-gray-900" id="modal-age">-</dd>
+                                        <dt class="text-gray-500">직업/회사</dt>
+                                        <dd class="text-gray-900 col-span-2" id="modal-job">-</dd>
+                                    </dl>
+                                </div>
+
+                                <!-- 배송지 정보 -->
+                                <div class="bg-green-50 rounded-lg p-4">
+                                    <h4 class="text-sm font-semibold text-green-700 mb-2">배송지 정보</h4>
+                                    <dl class="space-y-1 text-sm">
+                                        <div class="flex">
+                                            <dt class="text-gray-500 w-16">수령인</dt>
+                                            <dd class="text-gray-900" id="modal-receiver">-</dd>
+                                        </div>
+                                        <div class="flex">
+                                            <dt class="text-gray-500 w-16">연락처</dt>
+                                            <dd class="text-gray-900" id="modal-receiver-call">-</dd>
+                                        </div>
+                                        <div class="flex">
+                                            <dt class="text-gray-500 w-16">주소</dt>
+                                            <dd class="text-gray-900" id="modal-address">-</dd>
+                                        </div>
+                                        <div class="flex">
+                                            <dt class="text-gray-500 w-16">메모</dt>
+                                            <dd class="text-gray-900" id="modal-memo">-</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+
+                                <!-- 기타 옵션 정보 -->
+                                <div class="bg-yellow-50 rounded-lg p-4">
+                                    <h4 class="text-sm font-semibold text-yellow-700 mb-2">추가 옵션 정보</h4>
+                                    <dl class="space-y-1 text-sm" id="modal-options">
+                                        <div class="text-gray-500">정보 없음</div>
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                        <button type="button" onclick="closeProfileModal()"
+                                class="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 상품 모달 -->
+        <div id="productModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+                <!-- 배경 오버레이 -->
+                <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeProductModal()"></div>
+
+                <!-- 모달 콘텐츠 -->
+                <div class="relative inline-block px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+                    <div class="absolute top-0 right-0 pt-4 pr-4">
+                        <button type="button" onclick="closeProductModal()" class="text-gray-400 hover:text-gray-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center mb-4">
+                            <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                                </svg>
+                            </div>
+                            <h3 class="ml-3 text-lg font-medium leading-6 text-gray-900">주문 상품 정보</h3>
+                        </div>
+
+                        <div id="product-modal-content" class="space-y-4 max-h-[60vh] overflow-y-auto">
+                            <!-- 상품 목록이 여기에 동적으로 추가됨 -->
+                        </div>
+                    </div>
+
+                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                        <button type="button" onclick="closeProductModal()"
+                                class="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 모달 스크립트 -->
+        <script th:inline="javascript">
+            // 성별 아바타 업데이트
+            function updateAvatar(gender) {
+                const avatarEl = document.getElementById('modal-avatar');
+                if (gender === 'M' || gender === '남성' || gender === '남자') {
+                    avatarEl.className = 'flex items-center justify-center flex-shrink-0 w-16 h-16 mx-auto rounded-full sm:mx-0 bg-blue-100';
+                    avatarEl.innerHTML = `<svg class="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                    </svg>`;
+                } else if (gender === 'F' || gender === '여성' || gender === '여자') {
+                    avatarEl.className = 'flex items-center justify-center flex-shrink-0 w-16 h-16 mx-auto rounded-full sm:mx-0 bg-pink-100';
+                    avatarEl.innerHTML = `<svg class="w-10 h-10 text-pink-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                    </svg>`;
+                } else {
+                    avatarEl.className = 'flex items-center justify-center flex-shrink-0 w-16 h-16 mx-auto rounded-full sm:mx-0 bg-gray-100';
+                    avatarEl.innerHTML = `<svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>`;
+                }
+            }
+
+            // 회원 정보 API 조회
+            async function fetchMemberInfo(memberUid) {
+                if (!memberUid) return null;
+                try {
+                    const response = await fetch(`/api-view/members/${encodeURIComponent(memberUid)}`);
+                    if (response.ok) {
+                        return await response.json();
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch member info:', e);
+                }
+                return null;
+            }
+
+            // 나이 계산
+            function calculateAge(birthStr) {
+                if (!birthStr) return null;
+                const birthYear = parseInt(birthStr.substring(0, 4));
+                if (isNaN(birthYear)) return null;
+                return new Date().getFullYear() - birthYear;
+            }
+
+            // 날짜 포맷
+            function formatDate(dateStr) {
+                if (!dateStr) return '-';
+                return dateStr.substring(0, 10);
+            }
+
+            async function showProfileModal(orderNo) {
+                const dataEl = document.getElementById('profile-data-' + orderNo);
+                if (!dataEl) {
+                    alert('주문 정보를 찾을 수 없습니다.');
+                    return;
+                }
+
+                // 모달 표시
+                document.getElementById('profileModal').classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+
+                // 기본 정보 설정
+                document.getElementById('modal-name').textContent = dataEl.dataset.ordererName || '-';
+                document.getElementById('modal-email').textContent = dataEl.dataset.ordererEmail || '-';
+                document.getElementById('modal-call').textContent = dataEl.dataset.ordererCall || '-';
+
+                // 회원 정보 섹션 초기화
+                const memberSection = document.getElementById('member-info-section');
+                memberSection.classList.add('hidden');
+
+                // 회원인 경우 API 조회
+                const memberUid = dataEl.dataset.memberUid;
+                if (memberUid) {
+                    const memberInfo = await fetchMemberInfo(memberUid);
+                    if (memberInfo && !memberInfo.error) {
+                        memberSection.classList.remove('hidden');
+
+                        // 성별 표시
+                        const genderText = memberInfo.gender === 'M' ? '남성' : (memberInfo.gender === 'F' ? '여성' : '-');
+                        document.getElementById('modal-member-gender').textContent = genderText;
+
+                        // 생년월일
+                        document.getElementById('modal-member-birth').textContent = memberInfo.birth || '-';
+
+                        // 나이
+                        const age = calculateAge(memberInfo.birth);
+                        document.getElementById('modal-member-age').textContent = age ? `${age}세` : '-';
+
+                        // 가입일
+                        document.getElementById('modal-member-join').textContent = formatDate(memberInfo.joinTime);
+
+                        // 포인트
+                        document.getElementById('modal-member-point').textContent = memberInfo.point ? memberInfo.point.toLocaleString() + 'P' : '0P';
+
+                        // 소셜 로그인
+                        const social = memberInfo.socialLogin || {};
+                        const socialList = [];
+                        if (social.kakaoId) socialList.push('카카오');
+                        if (social.naverId) socialList.push('네이버');
+                        if (social.googleId) socialList.push('구글');
+                        if (social.facebookId) socialList.push('페이스북');
+                        if (social.appleId) socialList.push('애플');
+                        document.getElementById('modal-member-social').textContent = socialList.length > 0 ? socialList.join(', ') : '-';
+
+                        // 성별 아바타 업데이트
+                        updateAvatar(memberInfo.gender);
+                    }
+                }
+
+                // 옵션 정보 파싱 (성별, 나이 등)
+                let gender = '-';
+                let birthYear = '-';
+                let job = '-';
+                const options = [];
+
+                const optionSpans = dataEl.querySelectorAll('span[data-option-key]');
+                optionSpans.forEach(span => {
+                    const key = span.dataset.optionKey;
+                    const value = span.dataset.optionValue;
+
+                    if (key && value) {
+                        // 성별 찾기
+                        if (key.includes('성별')) {
+                            gender = value;
+                        }
+                        // 출생년도 찾기
+                        else if (key.includes('출생') || key.includes('년도') || key.includes('생년')) {
+                            birthYear = value;
+                        }
+                        // 직업/회사 찾기
+                        else if (key.includes('회사') || key.includes('직업') || key.includes('직장')) {
+                            job = value;
+                        }
+                        // 기타 옵션
+                        else if (!key.includes('연락처') && !key.includes('프리미엄')) {
+                            options.push({ key, value });
+                        }
+                    }
+                });
+
+                document.getElementById('modal-gender').textContent = gender;
+                document.getElementById('modal-birth').textContent = birthYear !== '-' ? (birthYear.length === 2 ? '19' + birthYear : birthYear) : '-';
+
+                // 나이 계산
+                if (birthYear !== '-') {
+                    const fullYear = birthYear.length === 2 ? parseInt('19' + birthYear) : parseInt(birthYear);
+                    const currentYear = new Date().getFullYear();
+                    const age = currentYear - fullYear;
+                    document.getElementById('modal-age').textContent = age + '세';
+                } else {
+                    document.getElementById('modal-age').textContent = '-';
+                }
+
+                document.getElementById('modal-job').textContent = job;
+
+                // 회원 정보 API가 없으면 옵션 정보로 아바타 업데이트
+                if (!memberUid) {
+                    updateAvatar(gender);
+                }
+
+                // 배송지 정보
+                const deliverySpan = dataEl.querySelector('span[data-delivery-name]');
+                if (deliverySpan) {
+                    document.getElementById('modal-receiver').textContent = deliverySpan.dataset.deliveryName || '-';
+                    document.getElementById('modal-receiver-call').textContent = deliverySpan.dataset.deliveryCall || '-';
+
+                    const zipcode = deliverySpan.dataset.deliveryZipcode || '';
+                    const addr1 = deliverySpan.dataset.deliveryAddr1 || '';
+                    const addr2 = deliverySpan.dataset.deliveryAddr2 || '';
+                    const fullAddress = [zipcode ? `(${zipcode})` : '', addr1, addr2].filter(Boolean).join(' ');
+                    document.getElementById('modal-address').textContent = fullAddress || '-';
+                    document.getElementById('modal-memo').textContent = deliverySpan.dataset.deliveryMemo || '-';
+                } else {
+                    document.getElementById('modal-receiver').textContent = '-';
+                    document.getElementById('modal-receiver-call').textContent = '-';
+                    document.getElementById('modal-address').textContent = '-';
+                    document.getElementById('modal-memo').textContent = '-';
+                }
+
+                // 기타 옵션 정보 표시
+                const optionsEl = document.getElementById('modal-options');
+                if (options.length > 0) {
+                    optionsEl.innerHTML = options.map(opt =>
+                        `<div class="flex"><span class="text-gray-500 w-32 flex-shrink-0">${opt.key}</span><span class="text-gray-900">${opt.value}</span></div>`
+                    ).join('');
+                } else {
+                    optionsEl.innerHTML = '<div class="text-gray-500">추가 정보 없음</div>';
+                }
+            }
+
+            function closeProfileModal() {
+                document.getElementById('profileModal').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            // 상품 모달 표시
+            function showProductModal(orderNo) {
+                const dataEl = document.getElementById('product-data-' + orderNo);
+                if (!dataEl) {
+                    alert('상품 정보를 찾을 수 없습니다.');
+                    return;
+                }
+
+                const productItems = dataEl.querySelectorAll('.product-item');
+                const contentEl = document.getElementById('product-modal-content');
+
+                if (productItems.length === 0) {
+                    contentEl.innerHTML = '<div class="text-center py-8 text-gray-500">상품 정보가 없습니다.</div>';
+                } else {
+                    let html = '';
+                    productItems.forEach((item, index) => {
+                        const prodNo = item.dataset.prodNo || '-';
+                        const prodName = item.dataset.prodName || '-';
+                        const itemPrice = item.dataset.itemPrice ? parseInt(item.dataset.itemPrice).toLocaleString() + '원' : '-';
+                        const basePrice = item.dataset.basePrice ? parseInt(item.dataset.basePrice).toLocaleString() + '원' : '-';
+                        const qty = item.dataset.qty || '1';
+                        const sectionStatus = item.dataset.sectionStatus || '-';
+
+                        // 옵션 정보 수집
+                        const optionSpans = item.querySelectorAll('.product-option');
+                        let optionsHtml = '';
+                        optionSpans.forEach(opt => {
+                            const key = opt.dataset.optKey;
+                            const value = opt.dataset.optValue;
+                            if (key && value) {
+                                optionsHtml += `<div class="flex text-sm py-1 border-b border-gray-100 last:border-0">
+                                    <span class="text-gray-500 w-40 flex-shrink-0">${key}</span>
+                                    <span class="text-gray-900">${value}</span>
+                                </div>`;
+                            }
+                        });
+
+                        // 상태 배지 색상
+                        let statusClass = 'bg-gray-100 text-gray-800';
+                        let statusText = sectionStatus;
+                        if (sectionStatus === 'SHIPPING_READY') {
+                            statusClass = 'bg-blue-100 text-blue-800';
+                            statusText = '배송준비';
+                        } else if (sectionStatus === 'SHIPPING') {
+                            statusClass = 'bg-yellow-100 text-yellow-800';
+                            statusText = '배송중';
+                        } else if (sectionStatus === 'SHIPPING_COMPLETE') {
+                            statusClass = 'bg-green-100 text-green-800';
+                            statusText = '배송완료';
+                        } else if (sectionStatus === 'CANCEL') {
+                            statusClass = 'bg-red-100 text-red-800';
+                            statusText = '취소';
+                        }
+
+                        html += `
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex-1">
+                                        <h4 class="font-medium text-gray-900">${prodName}</h4>
+                                        <div class="text-xs text-gray-500 mt-1">상품번호: ${prodNo}</div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">${statusText}</span>
+                                </div>
+                                <div class="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+                                    <div class="text-sm">
+                                        <span class="text-gray-500">수량:</span>
+                                        <span class="font-medium text-gray-900">${qty}개</span>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-lg font-bold text-gray-900">${itemPrice}</div>
+                                        ${basePrice !== itemPrice ? `<div class="text-xs text-gray-400 line-through">${basePrice}</div>` : ''}
+                                    </div>
+                                </div>
+                                ${optionsHtml ? `
+                                    <div class="bg-white rounded p-3 border border-gray-100">
+                                        <h5 class="text-xs font-semibold text-gray-600 mb-2 uppercase">선택 옵션</h5>
+                                        ${optionsHtml}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    });
+                    contentEl.innerHTML = html;
+                }
+
+                // 모달 표시
+                document.getElementById('productModal').classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+
+            function closeProductModal() {
+                document.getElementById('productModal').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            // ESC 키로 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeProfileModal();
+                    closeProductModal();
+                }
+            });
+
+            // UTC 시간을 KST로 변환하여 표시
+            function convertUtcToKst() {
+                const utcElements = document.querySelectorAll('.utc-to-kst');
+                utcElements.forEach(el => {
+                    const utcTime = el.dataset.utc;
+                    if (!utcTime || utcTime === '-') return;
+
+                    try {
+                        // ISO 8601 형식의 UTC 시간을 파싱
+                        let date;
+                        if (utcTime.includes('T')) {
+                            // ISO 형식: 2025-12-20T10:30:00.000Z 또는 2025-12-20T10:30:00+00:00
+                            date = new Date(utcTime);
+                        } else {
+                            // 일반 형식: 2025-12-20 10:30:00 (UTC로 간주)
+                            date = new Date(utcTime.replace(' ', 'T') + 'Z');
+                        }
+
+                        if (isNaN(date.getTime())) {
+                            // 파싱 실패시 원본 표시
+                            return;
+                        }
+
+                        // KST로 변환 (UTC + 9시간)
+                        const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+                        // 포맷: YYYY-MM-DD HH:mm
+                        const year = kstDate.getUTCFullYear();
+                        const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+                        const day = String(kstDate.getUTCDate()).padStart(2, '0');
+                        const hours = String(kstDate.getUTCHours()).padStart(2, '0');
+                        const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+
+                        el.textContent = `${year}-${month}-${day} ${hours}:${minutes}`;
+                    } catch (e) {
+                        console.error('Date conversion error:', e);
+                    }
+                });
+            }
+
+            // KST datetime-local 입력값을 UTC ISO 형식으로 변환
+            function convertKstInputToUtc(kstValue) {
+                if (!kstValue) return '';
+
+                // datetime-local 값은 'YYYY-MM-DDTHH:mm' 형식
+                // 사용자가 KST로 입력했다고 가정
+                const kstDate = new Date(kstValue);
+
+                // UTC로 변환 (KST - 9시간)
+                const utcDate = new Date(kstDate.getTime() - 9 * 60 * 60 * 1000);
+
+                // ISO 형식으로 반환
+                return utcDate.toISOString();
+            }
+
+            // 폼 제출 시 날짜 변환 처리
+            function setupDatetimeForm() {
+                const form = document.querySelector('form[action="/api-view/orders"]');
+                if (!form) return;
+
+                form.addEventListener('submit', function(e) {
+                    const startInput = form.querySelector('input[name="startWtime"]');
+                    const endInput = form.querySelector('input[name="endWtime"]');
+
+                    // KST 입력값을 UTC로 변환하여 hidden input에 저장
+                    if (startInput && startInput.value) {
+                        const utcValue = convertKstInputToUtc(startInput.value);
+                        startInput.value = utcValue;
+                    }
+                    if (endInput && endInput.value) {
+                        const utcValue = convertKstInputToUtc(endInput.value);
+                        endInput.value = utcValue;
+                    }
+                });
+
+                // 페이지 로드 시 UTC 값을 KST로 변환하여 input에 표시
+                const startInput = form.querySelector('input[name="startWtime"]');
+                const endInput = form.querySelector('input[name="endWtime"]');
+
+                if (startInput && startInput.value) {
+                    startInput.value = convertUtcToKstInput(startInput.value);
+                }
+                if (endInput && endInput.value) {
+                    endInput.value = convertUtcToKstInput(endInput.value);
+                }
+            }
+
+            // UTC ISO 문자열을 datetime-local 형식의 KST로 변환
+            function convertUtcToKstInput(utcValue) {
+                if (!utcValue) return '';
+
+                try {
+                    const date = new Date(utcValue);
+                    if (isNaN(date.getTime())) return utcValue;
+
+                    // KST로 변환 (UTC + 9시간)
+                    const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+                    // datetime-local 형식: YYYY-MM-DDTHH:mm
+                    const year = kstDate.getUTCFullYear();
+                    const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+                    const day = String(kstDate.getUTCDate()).padStart(2, '0');
+                    const hours = String(kstDate.getUTCHours()).padStart(2, '0');
+                    const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+
+                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                } catch (e) {
+                    return utcValue;
+                }
+            }
+
+            // 페이지 로드 시 실행
+            document.addEventListener('DOMContentLoaded', function() {
+                convertUtcToKst();
+                setupDatetimeForm();
+            });
+        </script>
+    </div>
+</body>
+</html>

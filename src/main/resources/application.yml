@@ -1,0 +1,67 @@
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 7d  # 세션 만료시간 1주일
+
+spring:
+  application:
+    name: ordersync-office
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  thymeleaf:
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/**/*.xml
+  type-aliases-package: org.webnori.ordersyncoffice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /docs
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+imweb:
+  api-base-url: https://openapi.imweb.me
+
+# 동기화 설정 - 지역별 상품코드 매핑 (공통)
+sync:
+  regions:
+    - codes: [248, 265, 263, 163, 151, 262]
+      name: 압구정
+    - codes: [54]
+      name: 역삼
+    - codes: [164, 266, 230, 207]
+      name: 이태원
+    - codes: [186]
+      name: 청담
+    - codes: [190, 168, 228, 210, 247, 154]
+      name: 광주
+    - codes: [264, 270, 271]
+      name: 일산
+    - codes: [167, 193, 268, 252, 246, 213, 234, 255, 208]
+      name: 대구
+    - codes: [189, 166, 251, 206]
+      name: 대전
+    - codes: [194, 209, 267, 239, 215, 236, 214, 226]
+      name: 부산
+    - codes: [198, 218, 216, 238]
+      name: 수원
+    - codes: [217, 256, 229, 273]
+      name: 울산
+    - codes: [231, 183, 169, 225]
+      name: 인천
+    - codes: [182, 196, 211, 272]
+      name: 천안

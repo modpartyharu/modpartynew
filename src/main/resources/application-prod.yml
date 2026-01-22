@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: ordersync-office
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  thymeleaf:
+    cache: true
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/**/*.xml
+  type-aliases-package: org.webnori.ordersyncoffice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+imweb:
+  client-id: ${IMWEB_CLIENT_ID:e5232bdf-ed71-42cc-907e-d285bbb41365}
+  client-secret: ${IMWEB_CLIENT_SECRET:41e0d351-388f-482f-9f43-9b80d1b4ea1f}
+  redirect-uri: ${IMWEB_REDIRECT_URI:https://modparty.webnori.com/oauth/callback}
+  api-base-url: https://openapi.imweb.me
+
+# 앱 로그인 비밀번호
+app:
+  login-password: ${APP_LOGIN_PASSWORD:modparty2025}
+
+logging:
+  level:
+    org.webnori.ordersyncoffice: INFO
+    org.mybatis: WARN
+    org.flywaydb: WARN

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title layout:title-pattern="$CONTENT_TITLE - $LAYOUT_TITLE">모드파티 Admin</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" th:href="@{/css/output.css}">
+    <style>
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform lg:translate-x-0 lg:static lg:inset-0 -translate-x-full">
+            <div class="flex flex-col h-full">
+                <!-- Logo -->
+                <div class="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+                    <a href="/" class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-lg">M</span>
+                        </div>
+                        <span class="text-xl font-semibold text-gray-900">모드파티 Admin</span>
+                    </a>
+                    <button id="closeSidebar" class="lg:hidden text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex-1 overflow-y-auto px-4 py-6">
+                    <div class="space-y-1">
+                        <a href="/" th:classappend="${#strings.equals(active, 'dashboard')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            대시보드
+                        </a>
+
+                        <!-- 주문관리 그룹 (펼치기/접기 가능) -->
+                        <div class="pt-4">
+                            <button type="button" onclick="toggleMenuGroup('order-menu')"
+                                    class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors">
+                                <span>주문관리</span>
+                                <svg id="order-menu-chevron" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div id="order-menu-items" class="space-y-0.5 overflow-hidden transition-all duration-200">
+                            <!-- 서울권 (지역명 필터) -->
+                            <a href="/sync/tables?regionName=이태원" th:classappend="${#strings.equals(active, 'region-이태원')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 이태원: 글로벌/다문화 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                                </svg>
+                                이태원
+                            </a>
+                            <a href="/sync/tables?regionName=청담" th:classappend="${#strings.equals(active, 'region-청담')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 청담: 럭셔리/다이아몬드 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l2.5 4.5L20 9l-4 4.5L17.5 21 12 18l-5.5 3L8 13.5 4 9l5.5-1.5L12 3z"></path>
+                                </svg>
+                                청담
+                            </a>
+                            <a href="/sync/tables?regionName=압구정" th:classappend="${#strings.equals(active, 'region-압구정')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 압구정: 트렌디/스파클 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                                </svg>
+                                압구정
+                            </a>
+                            <a href="/sync/tables?regionName=역삼" th:classappend="${#strings.equals(active, 'region-역삼')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 역삼: 비즈니스/오피스 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                </svg>
+                                역삼
+                            </a>
+                            <!-- 지방권 (지역명 필터) -->
+                            <a href="/sync/tables?regionName=광주" th:classappend="${#strings.equals(active, 'region-광주')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 광주: 예술/문화 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                                </svg>
+                                광주
+                            </a>
+                            <a href="/sync/tables?regionName=일산" th:classappend="${#strings.equals(active, 'region-일산')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 일산: 호수공원/자연 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                                </svg>
+                                일산
+                            </a>
+                            <a href="/sync/tables?regionName=대구" th:classappend="${#strings.equals(active, 'region-대구')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 대구: 사과/열정 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"></path>
+                                </svg>
+                                대구
+                            </a>
+                            <a href="/sync/tables?regionName=대전" th:classappend="${#strings.equals(active, 'region-대전')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 대전: 과학/테크 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                                대전
+                            </a>
+                            <a href="/sync/tables?regionName=부산" th:classappend="${#strings.equals(active, 'region-부산')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 부산: 배/항구 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 17h18M5 17l2-9h10l2 9M12 8V3m0 0L9 6m3-3l3 3M7 17v2a2 2 0 002 2h6a2 2 0 002-2v-2"></path>
+                                </svg>
+                                부산
+                            </a>
+                            <a href="/sync/tables?regionName=수원" th:classappend="${#strings.equals(active, 'region-수원')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 수원: 화성/성곽 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                </svg>
+                                수원
+                            </a>
+                            <a href="/sync/tables?regionName=울산" th:classappend="${#strings.equals(active, 'region-울산')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 울산: 산업/공장 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                                </svg>
+                                울산
+                            </a>
+                            <a href="/sync/tables?regionName=인천" th:classappend="${#strings.equals(active, 'region-인천')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 인천: 공항/비행기 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                인천
+                            </a>
+                            <a href="/sync/tables?regionName=천안" th:classappend="${#strings.equals(active, 'region-천안')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <!-- 천안: 독립/기념관 아이콘 -->
+                                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"></path>
+                                </svg>
+                                천안
+                            </a>
+                            <!-- 전체 주문 -->
+                            <a href="/sync/tables-all" th:classappend="${#strings.equals(active, 'sync-tables-all')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                                </svg>
+                                전체주문
+                            </a>
+                        </div>
+
+                        <!-- 연동정보 그룹 (devmode=true일 때만 표시) -->
+                        <div id="devmode-menu" class="hidden">
+                            <div class="pt-4 pb-2">
+                                <div class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                    연동정보
+                                </div>
+                            </div>
+
+                            <a href="/app-status" th:classappend="${#strings.equals(active, 'app-status')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                </svg>
+                                앱상태 모니터
+                            </a>
+
+                            <a href="/api-view/orders" th:classappend="${#strings.equals(active, 'orders')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                </svg>
+                                주문조회
+                            </a>
+
+                            <a href="/api-view/products" th:classappend="${#strings.equals(active, 'products')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                </svg>
+                                상품조회
+                            </a>
+
+                            <a href="/sync/status" th:classappend="${#strings.equals(active, 'sync-status')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Sync현황
+                            </a>
+
+                            <a href="/sync/alimtalk" th:classappend="${#strings.equals(active, 'sync-alimtalk')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                </svg>
+                                알림톡 테스트
+                            </a>
+                        </div>
+
+                        <!-- 관리자 메뉴 (devmode 메뉴 아래) -->
+                        <div class="pt-4 pb-2">
+                            <div class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                관리자
+                            </div>
+                        </div>
+                        <a href="/admin/manual-sync" th:classappend="${#strings.equals(active, 'admin-manual-sync')} ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'" class="flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                            </svg>
+                            수동 동기화
+                        </a>
+
+                        <!-- 구분선 -->
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <form th:action="@{/auth/logout}" method="post">
+                                <button type="submit" class="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-red-50 hover:text-red-600">
+                                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                로그아웃
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6">
+                <button id="toggleSidebar" class="text-gray-500 hover:text-gray-700 lg:hidden">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <div class="flex-1 flex justify-center lg:justify-start lg:ml-4">
+                    <h1 class="text-xl font-semibold text-gray-900" layout:fragment="page-title">모드파티 Admin</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Store Selector -->
+                    <div th:if="${selectedStore != null}" class="flex items-center space-x-2 bg-green-50 px-3 py-1.5 rounded-lg">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span class="text-sm text-green-700" th:text="${selectedStore.siteName} ?: ${selectedStore.siteCode}">Store</span>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-semibold text-sm">
+                        관
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-y-auto p-6">
+                <!-- Flash Messages -->
+                <div th:if="${success}" class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                    <span th:text="${success}"></span>
+                </div>
+                <div th:if="${error}" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    <span th:text="${error}"></span>
+                </div>
+
+                <div layout:fragment="content">
+                    Page content goes here
+                </div>
+            </main>
+
+        </div>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden lg:hidden"></div>
+
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const toggleBtn = document.getElementById('toggleSidebar');
+        const closeBtn = document.getElementById('closeSidebar');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        }
+
+        toggleBtn?.addEventListener('click', openSidebar);
+        closeBtn?.addEventListener('click', closeSidebar);
+        overlay?.addEventListener('click', closeSidebar);
+
+        // 메뉴 그룹 펼치기/접기 기능
+        const MENU_STATE_KEY = 'menu_collapsed_state';
+
+        function toggleMenuGroup(menuId) {
+            const items = document.getElementById(menuId + '-items');
+            const chevron = document.getElementById(menuId + '-chevron');
+
+            if (!items || !chevron) return;
+
+            const isCollapsed = items.classList.contains('menu-collapsed');
+
+            if (isCollapsed) {
+                // 펼치기
+                items.classList.remove('menu-collapsed');
+                items.style.maxHeight = items.scrollHeight + 'px';
+                chevron.classList.remove('-rotate-90');
+            } else {
+                // 접기
+                items.classList.add('menu-collapsed');
+                items.style.maxHeight = '0';
+                chevron.classList.add('-rotate-90');
+            }
+
+            // 로컬스토리지에 상태 저장
+            saveMenuState(menuId, !isCollapsed);
+        }
+
+        function saveMenuState(menuId, isCollapsed) {
+            const state = JSON.parse(localStorage.getItem(MENU_STATE_KEY) || '{}');
+            state[menuId] = isCollapsed;
+            localStorage.setItem(MENU_STATE_KEY, JSON.stringify(state));
+        }
+
+        function loadMenuState() {
+            const state = JSON.parse(localStorage.getItem(MENU_STATE_KEY) || '{}');
+
+            Object.keys(state).forEach(menuId => {
+                const isCollapsed = state[menuId];
+                const items = document.getElementById(menuId + '-items');
+                const chevron = document.getElementById(menuId + '-chevron');
+
+                if (!items || !chevron) return;
+
+                if (isCollapsed) {
+                    items.classList.add('menu-collapsed');
+                    items.style.maxHeight = '0';
+                    chevron.classList.add('-rotate-90');
+                } else {
+                    items.classList.remove('menu-collapsed');
+                    items.style.maxHeight = items.scrollHeight + 'px';
+                }
+            });
+        }
+
+        // devmode 쿼리 파라미터 체크 및 연동정보 메뉴 표시
+        function checkDevMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isDevMode = urlParams.get('devmode') === 'true';
+            const devmodeMenu = document.getElementById('devmode-menu');
+
+            if (devmodeMenu && isDevMode) {
+                devmodeMenu.classList.remove('hidden');
+            }
+        }
+
+        // 페이지 로드 시 메뉴 상태 복원
+        document.addEventListener('DOMContentLoaded', function() {
+            // 먼저 모든 메뉴를 기본 펼침 상태로 설정
+            document.querySelectorAll('[id$="-items"]').forEach(items => {
+                items.style.maxHeight = items.scrollHeight + 'px';
+            });
+            // 저장된 상태 복원
+            loadMenuState();
+            // devmode 체크
+            checkDevMode();
+        });
+    </script>
+
+    <th:block layout:fragment="scripts"></th:block>
+</body>
+</html>

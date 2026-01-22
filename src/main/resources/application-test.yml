@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: ordersync-office
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  thymeleaf:
+    cache: false
+    mode: HTML
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/**/*.xml
+  type-aliases-package: org.webnori.ordersyncoffice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+imweb:
+  client-id: test-client-id
+  client-secret: test-client-secret
+  redirect-uri: http://localhost:8080/oauth/callback
+  api-base-url: https://openapi.imweb.me
+
+logging:
+  level:
+    org.webnori.ordersyncoffice: DEBUG

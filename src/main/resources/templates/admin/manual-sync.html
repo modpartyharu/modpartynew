@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>수동 동기화</title>
+</head>
+<body>
+    <h1 layout:fragment="page-title">수동 동기화</h1>
+
+    <div layout:fragment="content">
+        <div class="space-y-6">
+            <!-- 수동 동기화 패널 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">수동 동기화</h2>
+                        <p class="text-sm text-gray-500 mt-1">선택한 기간의 주문 데이터를 수동으로 동기화합니다. (주문 + 상품 + 회원정보 통합)</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <select id="syncDaysSelect" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="1">최근 1일</option>
+                            <option value="3" selected>최근 3일</option>
+                            <option value="7">최근 7일</option>
+                            <option value="14">최근 14일</option>
+                        </select>
+                        <button id="syncButton" onclick="startSync()"
+                                th:disabled="${runningSync != null}"
+                                class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                            <svg id="syncIcon" class="w-5 h-5" th:classappend="${runningSync != null} ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span id="syncButtonText" th:text="${runningSync != null} ? '동기화 진행 중...' : '수동 동기화'">수동 동기화</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SSE 진행상황 표시 영역 -->
+                <div id="progressPanel" class="hidden mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="flex items-center space-x-3 mb-3">
+                        <svg id="progressSpinner" class="w-5 h-5 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <div>
+                            <span class="font-medium text-blue-700">동기화 진행 중</span>
+                            <span id="progressMessage" class="text-blue-600 ml-2">준비 중...</span>
+                        </div>
+                    </div>
+                    <!-- 진행바 -->
+                    <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                        <div id="progressBar" class="bg-blue-500 h-4 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between mt-1 text-sm text-gray-600">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressStats"></span>
+                    </div>
+                </div>
+
+                <!-- 기존 진행 중인 동기화 (서버 렌더링용) -->
+                <div th:if="${runningSync != null}" id="serverRunningSync" class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="flex items-center space-x-3">
+                        <svg class="w-5 h-5 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <div>
+                            <span class="font-medium text-blue-700">동기화 진행 중</span>
+                            <span class="text-blue-600 ml-2" th:text="${runningSync.syncedCount} + '건 완료 / ' + ${runningSync.failedCount} + '건 실패'"></span>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-sm text-blue-600">
+                        기간: <span th:text="${runningSync.startDate}"></span> ~ <span th:text="${runningSync.endDate}"></span>
+                    </div>
+                </div>
+
+                <!-- 결과 메시지 -->
+                <div id="syncResult" class="hidden mt-4 p-4 rounded-lg"></div>
+            </div>
+
+            <!-- 최근 동기화 정보 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">최근 동기화 정보</h3>
+
+                <div th:if="${latestSync != null}" class="grid gap-4 md:grid-cols-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">상태</div>
+                        <div class="font-semibold" th:classappend="${latestSync.status == 'COMPLETED'} ? 'text-green-600' : (${latestSync.status == 'FAILED'} ? 'text-red-600' : 'text-blue-600')">
+                            <span th:if="${latestSync.status == 'COMPLETED'}">완료</span>
+                            <span th:if="${latestSync.status == 'FAILED'}">실패</span>
+                            <span th:if="${latestSync.status == 'RUNNING'}">진행 중</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">동기화 건수</div>
+                        <div class="font-semibold text-gray-900" th:text="${latestSync.syncedCount} + '건'">0건</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">실패 건수</div>
+                        <div class="font-semibold" th:classappend="${latestSync.failedCount > 0} ? 'text-red-600' : 'text-gray-900'" th:text="${latestSync.failedCount} + '건'">0건</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-1">동기화 기간</div>
+                        <div class="font-semibold text-gray-900 text-sm" th:text="${latestSync.startDate} + ' ~ ' + ${latestSync.endDate}">-</div>
+                    </div>
+                </div>
+
+                <div th:if="${latestSync == null}" class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <p>아직 동기화 이력이 없습니다.</p>
+                    <p class="text-sm mt-1">위의 '수동 동기화' 버튼을 클릭하여 시작하세요.</p>
+                </div>
+            </div>
+
+            <!-- 기능 안내 -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">동기화 기능 안내</h3>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">주문 통합 동기화</span>
+                        </div>
+                        <p class="text-sm text-gray-500">주문정보 + 상품상세 + 회원프로필을 통합하여 하나의 테이블로 저장합니다.</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">Update or Insert</span>
+                        </div>
+                        <p class="text-sm text-gray-500">기존 데이터가 있으면 업데이트, 없으면 새로 저장합니다.</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">선택 기간</span>
+                        </div>
+                        <p class="text-sm text-gray-500">최근 1~14일 중 선택한 기간의 데이터를 동기화합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            let eventSource = null;
+
+            function startSync() {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressPanel = document.getElementById('progressPanel');
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+                const progressStats = document.getElementById('progressStats');
+                const serverRunningSync = document.getElementById('serverRunningSync');
+                const syncDays = document.getElementById('syncDaysSelect').value;
+
+                // 서버 렌더링된 진행중 표시 숨기기
+                if (serverRunningSync) {
+                    serverRunningSync.classList.add('hidden');
+                }
+
+                // 버튼 및 선택박스 비활성화
+                button.disabled = true;
+                document.getElementById('syncDaysSelect').disabled = true;
+                buttonText.textContent = '동기화 진행 중...';
+                syncIcon.classList.add('animate-spin');
+                resultDiv.classList.add('hidden');
+
+                // 진행상황 패널 표시 및 초기화
+                progressPanel.classList.remove('hidden');
+                progressBar.style.width = '0%';
+                progressBar.classList.remove('bg-green-500', 'bg-red-500');
+                progressBar.classList.add('bg-blue-500');
+                progressMessage.textContent = '연결 중...';
+                progressPercent.textContent = '0%';
+                progressStats.textContent = '';
+
+                // 기존 SSE 연결 종료
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                // SSE 연결 시작 (선택한 일수 파라미터 포함)
+                eventSource = new EventSource(`/api/sync/orders/stream?days=${syncDays}`);
+
+                // IN_PROGRESS 이벤트 처리
+                eventSource.addEventListener('in_progress', function(e) {
+                    const data = JSON.parse(e.data);
+                    updateProgress(data);
+                });
+
+                // COMPLETED 이벤트 처리
+                eventSource.addEventListener('completed', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleCompleted(data);
+                    eventSource.close();
+                });
+
+                // FAILED 이벤트 처리
+                eventSource.addEventListener('failed', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleFailed(data);
+                    eventSource.close();
+                });
+
+                // 에러 이벤트 처리
+                eventSource.addEventListener('error', function(e) {
+                    const data = JSON.parse(e.data);
+                    handleFailed(data);
+                    eventSource.close();
+                });
+
+                // 연결 오류 처리
+                eventSource.onerror = function(e) {
+                    console.error('SSE connection error:', e);
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        return; // 정상 종료
+                    }
+                    handleFailed({
+                        status: 'FAILED',
+                        message: 'SSE 연결이 끊어졌습니다.',
+                        progress: 0
+                    });
+                    eventSource.close();
+                };
+            }
+
+            function updateProgress(data) {
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+
+                progressBar.style.width = data.progress + '%';
+                progressMessage.textContent = data.message;
+                progressPercent.textContent = data.progress + '%';
+            }
+
+            function handleCompleted(data) {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressBar = document.getElementById('progressBar');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressPercent = document.getElementById('progressPercent');
+                const progressStats = document.getElementById('progressStats');
+                const progressSpinner = document.getElementById('progressSpinner');
+
+                // 진행바 완료 상태
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-green-500');
+                progressMessage.textContent = data.message;
+                progressPercent.textContent = '100%';
+                progressSpinner.classList.remove('animate-spin');
+
+                // 결과 통계 표시
+                if (data.result) {
+                    progressStats.textContent = `신규: ${data.result.newRecords}건, 업데이트: ${data.result.updatedRecords}건, 실패: ${data.result.failedRecords}건`;
+                }
+
+                // 결과 메시지 표시
+                resultDiv.classList.remove('hidden');
+                resultDiv.className = 'mt-4 p-4 rounded-lg bg-green-50 border border-green-200 text-green-700';
+                resultDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span>${data.message}</span>
+                    </div>
+                    <div class="mt-2 text-sm">
+                        총 ${data.result?.totalRecords || 0}건 처리 (신규: ${data.result?.newRecords || 0}건, 업데이트: ${data.result?.updatedRecords || 0}건, 실패: ${data.result?.failedRecords || 0}건)
+                    </div>
+                `;
+
+                // 페이지 새로고침
+                setTimeout(() => location.reload(), 3000);
+            }
+
+            function handleFailed(data) {
+                const button = document.getElementById('syncButton');
+                const buttonText = document.getElementById('syncButtonText');
+                const syncIcon = document.getElementById('syncIcon');
+                const resultDiv = document.getElementById('syncResult');
+                const progressPanel = document.getElementById('progressPanel');
+                const progressBar = document.getElementById('progressBar');
+                const progressSpinner = document.getElementById('progressSpinner');
+
+                // 진행바 실패 상태
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-red-500');
+                progressSpinner.classList.remove('animate-spin');
+
+                // 결과 메시지 표시
+                resultDiv.classList.remove('hidden');
+                resultDiv.className = 'mt-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700';
+                resultDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        <span>${data.message}</span>
+                    </div>
+                `;
+
+                // 버튼 및 선택박스 상태 복원
+                button.disabled = false;
+                document.getElementById('syncDaysSelect').disabled = false;
+                buttonText.textContent = '수동 동기화';
+                syncIcon.classList.remove('animate-spin');
+            }
+
+            // 페이지 떠날 때 SSE 연결 종료
+            window.addEventListener('beforeunload', function() {
+                if (eventSource) {
+                    eventSource.close();
+                }
+            });
+        </script>
+    </th:block>
+</body>
+</html>

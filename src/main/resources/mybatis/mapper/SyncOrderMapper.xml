@@ -1,0 +1,994 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.SyncOrderMapper">
+
+    <resultMap id="SyncOrderResultMap" type="org.webnori.ordersyncoffice.domain.SyncOrder" autoMapping="false">
+        <id property="id" column="id"/>
+        <result property="siteCode" column="site_code"/>
+        <result property="unitCode" column="unit_code"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="orderType" column="order_type"/>
+        <result property="saleChannel" column="sale_channel"/>
+        <result property="device" column="device"/>
+        <result property="country" column="country"/>
+        <result property="currency" column="currency"/>
+        <result property="totalPrice" column="total_price"/>
+        <result property="totalPaymentPrice" column="total_payment_price"/>
+        <result property="totalDeliveryPrice" column="total_delivery_price"/>
+        <result property="totalDiscountPrice" column="total_discount_price"/>
+        <result property="ordererName" column="orderer_name"/>
+        <result property="ordererEmail" column="orderer_email"/>
+        <result property="ordererCall" column="orderer_call"/>
+        <result property="isMember" column="is_member"/>
+        <result property="memberCode" column="member_code"/>
+        <result property="memberUid" column="member_uid"/>
+        <result property="memberGender" column="member_gender"/>
+        <result property="memberBirth" column="member_birth"/>
+        <result property="memberJoinTime" column="member_join_time"/>
+        <result property="memberPoint" column="member_point"/>
+        <result property="memberGrade" column="member_grade"/>
+        <result property="memberSocialLogin" column="member_social_login"/>
+        <result property="memberSmsAgree" column="member_sms_agree"/>
+        <result property="memberEmailAgree" column="member_email_agree"/>
+        <result property="paymentNo" column="payment_no"/>
+        <result property="paymentStatus" column="payment_status"/>
+        <result property="paymentMethod" column="payment_method"/>
+        <result property="pgName" column="pg_name"/>
+        <result property="paidPrice" column="paid_price"/>
+        <result property="paymentCompleteTime" column="payment_complete_time"/>
+        <result property="receiverName" column="receiver_name"/>
+        <result property="receiverCall" column="receiver_call"/>
+        <result property="deliveryZipcode" column="delivery_zipcode"/>
+        <result property="deliveryAddr1" column="delivery_addr1"/>
+        <result property="deliveryAddr2" column="delivery_addr2"/>
+        <result property="deliveryCity" column="delivery_city"/>
+        <result property="deliveryState" column="delivery_state"/>
+        <result property="deliveryCountry" column="delivery_country"/>
+        <result property="deliveryMemo" column="delivery_memo"/>
+        <result property="orderSectionStatus" column="order_section_status"/>
+        <result property="deliveryType" column="delivery_type"/>
+        <result property="prodNo" column="prod_no"/>
+        <result property="prodName" column="prod_name"/>
+        <result property="prodCode" column="prod_code"/>
+        <result property="prodStatus" column="prod_status"/>
+        <result property="prodType" column="prod_type"/>
+        <result property="itemPrice" column="item_price"/>
+        <result property="itemQty" column="item_qty"/>
+        <result property="optionInfo" column="option_info"/>
+        <result property="prodBrand" column="prod_brand"/>
+        <result property="prodEventWords" column="prod_event_words"/>
+        <result property="prodReviewCount" column="prod_review_count"/>
+        <result property="prodIsBadgeBest" column="prod_is_badge_best"/>
+        <result property="prodIsBadgeHot" column="prod_is_badge_hot"/>
+        <result property="prodIsBadgeNew" column="prod_is_badge_new"/>
+        <result property="prodSimpleContent" column="prod_simple_content"/>
+        <result property="prodImageUrl" column="prod_image_url"/>
+        <result property="formData" column="form_data"/>
+        <result property="allProducts" column="all_products"/>
+        <result property="optGender" column="opt_gender"/>
+        <result property="optBirthYear" column="opt_birth_year"/>
+        <result property="optAge" column="opt_age"/>
+        <result property="optJob" column="opt_job"/>
+        <result property="optPreferredDate" column="opt_preferred_date"/>
+        <result property="orderEventDateDt" column="order_event_date_dt"/>
+        <result property="managementStatus" column="management_status"/>
+        <result property="carryoverRound" column="carryover_round"/>
+        <result property="regionName" column="region_name"/>
+        <result property="orderTime" column="order_time"/>
+        <result property="adminUrl" column="admin_url"/>
+        <result property="syncedAt" column="synced_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="alimtalkSent" column="alimtalk_sent"/>
+        <result property="alimtalkSentAt" column="alimtalk_sent_at"/>
+        <result property="lastRealtimeCheck" column="last_realtime_check"/>
+        <result property="optPremium" column="opt_premium"/>
+        <result property="optProfile" column="opt_profile" javaType="java.lang.String"/>
+        <result property="eventDate" column="event_date"/>
+        <result property="isManualOrder" column="is_manual_order"/>
+    </resultMap>
+
+    <select id="findBySiteCode" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE site_code = #{siteCode}
+        ORDER BY order_time DESC
+    </select>
+
+    <select id="findBySiteCodeAndOrderNo" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE site_code = #{siteCode} AND order_no = #{orderNo}
+    </select>
+
+    <select id="findBySiteCodePaged" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE site_code = #{siteCode}
+        ORDER BY order_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countBySiteCode" resultType="long">
+        SELECT COUNT(*) FROM sync_orders WHERE site_code = #{siteCode}
+    </select>
+
+    <!-- 필터링된 주문 목록 조회 -->
+    <select id="findBySiteCodeFiltered" resultMap="SyncOrderResultMap">
+        SELECT DISTINCT so.* FROM sync_orders so
+        <if test="categoryCode != null and categoryCode != ''">
+            INNER JOIN sync_order_categories soc ON so.id = soc.sync_order_id AND soc.category_code = #{categoryCode}
+        </if>
+        WHERE so.site_code = #{siteCode}
+        <if test="paymentMethod != null and paymentMethod != ''">
+            AND so.payment_method = #{paymentMethod}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND so.order_time >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND so.order_time &lt;= #{endDate}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            <choose>
+                <when test="managementStatus == '환불'">
+                    AND so.management_status LIKE '환불%'
+                </when>
+                <otherwise>
+                    AND so.management_status = #{managementStatus}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="searchPhone != null and searchPhone != ''">
+            AND (so.orderer_call LIKE CONCAT('%', #{searchPhone}, '%') OR so.receiver_call LIKE CONCAT('%', #{searchPhone}, '%'))
+        </if>
+        <if test="searchName != null and searchName != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{searchName}, '%') OR so.receiver_name LIKE CONCAT('%', #{searchName}, '%'))
+        </if>
+        <choose>
+            <when test="sortBy == 'orderNo'">
+                <choose>
+                    <when test="sortDir == 'ASC'">ORDER BY so.order_no ASC</when>
+                    <otherwise>ORDER BY so.order_no DESC</otherwise>
+                </choose>
+            </when>
+            <when test="sortBy == 'orderTime'">
+                <choose>
+                    <when test="sortDir == 'ASC'">ORDER BY so.order_time ASC</when>
+                    <otherwise>ORDER BY so.order_time DESC</otherwise>
+                </choose>
+            </when>
+            <when test="sortBy == 'syncedAt'">
+                <choose>
+                    <when test="sortDir == 'ASC'">ORDER BY so.synced_at ASC</when>
+                    <otherwise>ORDER BY so.synced_at DESC</otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                ORDER BY so.order_no DESC
+            </otherwise>
+        </choose>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 필터링된 주문 수 -->
+    <select id="countBySiteCodeFiltered" resultType="long">
+        SELECT COUNT(DISTINCT so.id) FROM sync_orders so
+        <if test="categoryCode != null and categoryCode != ''">
+            INNER JOIN sync_order_categories soc ON so.id = soc.sync_order_id AND soc.category_code = #{categoryCode}
+        </if>
+        WHERE so.site_code = #{siteCode}
+        <if test="paymentMethod != null and paymentMethod != ''">
+            AND so.payment_method = #{paymentMethod}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND so.order_time >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND so.order_time &lt;= #{endDate}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            <choose>
+                <when test="managementStatus == '환불'">
+                    AND so.management_status LIKE '환불%'
+                </when>
+                <otherwise>
+                    AND so.management_status = #{managementStatus}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="searchPhone != null and searchPhone != ''">
+            AND (so.orderer_call LIKE CONCAT('%', #{searchPhone}, '%') OR so.receiver_call LIKE CONCAT('%', #{searchPhone}, '%'))
+        </if>
+        <if test="searchName != null and searchName != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{searchName}, '%') OR so.receiver_name LIKE CONCAT('%', #{searchName}, '%'))
+        </if>
+    </select>
+
+    <!-- 필터링된 결제금액 합계 -->
+    <select id="sumPaidPriceFiltered" resultType="long">
+        SELECT COALESCE(SUM(DISTINCT so.paid_price), 0) FROM sync_orders so
+        <if test="categoryCode != null and categoryCode != ''">
+            INNER JOIN sync_order_categories soc ON so.id = soc.sync_order_id AND soc.category_code = #{categoryCode}
+        </if>
+        WHERE so.site_code = #{siteCode}
+        <if test="paymentMethod != null and paymentMethod != ''">
+            AND so.payment_method = #{paymentMethod}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND so.order_time >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND so.order_time &lt;= #{endDate}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            <choose>
+                <when test="managementStatus == '환불'">
+                    AND so.management_status LIKE '환불%'
+                </when>
+                <otherwise>
+                    AND so.management_status = #{managementStatus}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="searchPhone != null and searchPhone != ''">
+            AND (so.orderer_call LIKE CONCAT('%', #{searchPhone}, '%') OR so.receiver_call LIKE CONCAT('%', #{searchPhone}, '%'))
+        </if>
+        <if test="searchName != null and searchName != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{searchName}, '%') OR so.receiver_name LIKE CONCAT('%', #{searchName}, '%'))
+        </if>
+    </select>
+
+    <!-- 결제수단 목록 조회 -->
+    <select id="findDistinctPaymentMethods" resultType="string">
+        SELECT DISTINCT payment_method FROM sync_orders
+        WHERE site_code = #{siteCode} AND payment_method IS NOT NULL AND payment_method != ''
+        ORDER BY payment_method
+    </select>
+
+    <!-- 주문의 카테고리명 조회 -->
+    <select id="findCategoryNamesByOrderId" resultType="string">
+        SELECT sc.name FROM sync_order_categories soc
+        INNER JOIN sync_categories sc ON soc.category_code = sc.category_code AND soc.site_code = sc.site_code
+        WHERE soc.sync_order_id = #{orderId}
+        ORDER BY sc.name
+    </select>
+
+    <insert id="upsert" parameterType="org.webnori.ordersyncoffice.domain.SyncOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sync_orders (
+            site_code, unit_code, order_no, order_status, order_type, sale_channel, device, country, currency,
+            total_price, total_payment_price, total_delivery_price, total_discount_price,
+            orderer_name, orderer_email, orderer_call, is_member, member_code, member_uid,
+            member_gender, member_birth, member_join_time, member_point, member_grade, member_social_login,
+            member_sms_agree, member_email_agree,
+            payment_no, payment_status, payment_method, pg_name, paid_price, payment_complete_time,
+            receiver_name, receiver_call, delivery_zipcode, delivery_addr1, delivery_addr2,
+            delivery_city, delivery_state, delivery_country, delivery_memo,
+            order_section_status, delivery_type,
+            prod_no, prod_name, prod_code, prod_status, prod_type, item_price, item_qty, option_info,
+            prod_brand, prod_event_words, prod_review_count, prod_is_badge_best, prod_is_badge_hot,
+            prod_is_badge_new, prod_simple_content, prod_image_url,
+            form_data, all_products, opt_gender, opt_birth_year, opt_age, opt_job, opt_preferred_date, order_event_date_dt,
+            management_status, region_name,
+            order_time, admin_url,
+            opt_premium, event_date
+        ) VALUES (
+            #{siteCode}, #{unitCode}, #{orderNo}, #{orderStatus}, #{orderType}, #{saleChannel}, #{device}, #{country}, #{currency},
+            #{totalPrice}, #{totalPaymentPrice}, #{totalDeliveryPrice}, #{totalDiscountPrice},
+            #{ordererName}, #{ordererEmail}, #{ordererCall}, #{isMember}, #{memberCode}, #{memberUid},
+            #{memberGender}, #{memberBirth}, #{memberJoinTime}, #{memberPoint}, #{memberGrade}, #{memberSocialLogin},
+            #{memberSmsAgree}, #{memberEmailAgree},
+            #{paymentNo}, #{paymentStatus}, #{paymentMethod}, #{pgName}, #{paidPrice}, #{paymentCompleteTime},
+            #{receiverName}, #{receiverCall}, #{deliveryZipcode}, #{deliveryAddr1}, #{deliveryAddr2},
+            #{deliveryCity}, #{deliveryState}, #{deliveryCountry}, #{deliveryMemo},
+            #{orderSectionStatus}, #{deliveryType},
+            #{prodNo}, #{prodName}, #{prodCode}, #{prodStatus}, #{prodType}, #{itemPrice}, #{itemQty}, #{optionInfo},
+            #{prodBrand}, #{prodEventWords}, #{prodReviewCount}, #{prodIsBadgeBest}, #{prodIsBadgeHot},
+            #{prodIsBadgeNew}, #{prodSimpleContent}, #{prodImageUrl},
+            #{formData}, #{allProducts}, #{optGender}, #{optBirthYear}, #{optAge}, #{optJob}, #{optPreferredDate}, #{orderEventDateDt},
+            #{managementStatus}, #{regionName},
+            #{orderTime}, #{adminUrl},
+            #{optPremium}, #{eventDate}
+        )
+        ON DUPLICATE KEY UPDATE
+            unit_code = VALUES(unit_code),
+            order_status = VALUES(order_status),
+            order_type = VALUES(order_type),
+            sale_channel = VALUES(sale_channel),
+            device = VALUES(device),
+            country = VALUES(country),
+            currency = VALUES(currency),
+            total_price = VALUES(total_price),
+            total_payment_price = VALUES(total_payment_price),
+            total_delivery_price = VALUES(total_delivery_price),
+            total_discount_price = VALUES(total_discount_price),
+            orderer_name = VALUES(orderer_name),
+            orderer_email = VALUES(orderer_email),
+            orderer_call = VALUES(orderer_call),
+            is_member = VALUES(is_member),
+            member_code = VALUES(member_code),
+            member_uid = VALUES(member_uid),
+            member_gender = VALUES(member_gender),
+            member_birth = VALUES(member_birth),
+            member_join_time = VALUES(member_join_time),
+            member_point = VALUES(member_point),
+            member_grade = VALUES(member_grade),
+            member_social_login = VALUES(member_social_login),
+            member_sms_agree = VALUES(member_sms_agree),
+            member_email_agree = VALUES(member_email_agree),
+            payment_no = VALUES(payment_no),
+            payment_status = VALUES(payment_status),
+            payment_method = VALUES(payment_method),
+            pg_name = VALUES(pg_name),
+            paid_price = VALUES(paid_price),
+            payment_complete_time = VALUES(payment_complete_time),
+            receiver_name = VALUES(receiver_name),
+            receiver_call = VALUES(receiver_call),
+            delivery_zipcode = VALUES(delivery_zipcode),
+            delivery_addr1 = VALUES(delivery_addr1),
+            delivery_addr2 = VALUES(delivery_addr2),
+            delivery_city = VALUES(delivery_city),
+            delivery_state = VALUES(delivery_state),
+            delivery_country = VALUES(delivery_country),
+            delivery_memo = VALUES(delivery_memo),
+            order_section_status = VALUES(order_section_status),
+            delivery_type = VALUES(delivery_type),
+            prod_no = VALUES(prod_no),
+            prod_name = VALUES(prod_name),
+            prod_code = VALUES(prod_code),
+            prod_status = VALUES(prod_status),
+            prod_type = VALUES(prod_type),
+            item_price = VALUES(item_price),
+            item_qty = VALUES(item_qty),
+            option_info = VALUES(option_info),
+            prod_brand = VALUES(prod_brand),
+            prod_event_words = VALUES(prod_event_words),
+            prod_review_count = VALUES(prod_review_count),
+            prod_is_badge_best = VALUES(prod_is_badge_best),
+            prod_is_badge_hot = VALUES(prod_is_badge_hot),
+            prod_is_badge_new = VALUES(prod_is_badge_new),
+            prod_simple_content = VALUES(prod_simple_content),
+            prod_image_url = VALUES(prod_image_url),
+            form_data = VALUES(form_data),
+            all_products = VALUES(all_products),
+            opt_gender = VALUES(opt_gender),
+            opt_birth_year = VALUES(opt_birth_year),
+            opt_age = VALUES(opt_age),
+            opt_job = VALUES(opt_job),
+            opt_preferred_date = VALUES(opt_preferred_date),
+            order_event_date_dt = VALUES(order_event_date_dt),
+            management_status = CASE
+                <!-- 환불 관련 결제상태: 환불 (이미 세부 환불인 경우 유지) -->
+                WHEN VALUES(payment_status) IN ('REFUND_PROCESSING', 'PARTIAL_REFUND_COMPLETE', 'REFUND_COMPLETE')
+                     AND management_status NOT LIKE '환불%' THEN '환불'
+                <!-- 환불 관련 주문섹션상태 (반품완료, 취소완료): 환불 -->
+                WHEN VALUES(order_section_status) IN ('RETURN_COMPLETE', 'CANCEL_COMPLETE')
+                     AND management_status NOT LIKE '환불%' THEN '환불'
+                <!-- 결제대기중 → 결제완료: 확인필요 -->
+                WHEN management_status = '결제대기중' AND VALUES(payment_status) = 'PAYMENT_COMPLETE' THEN '확인필요'
+                ELSE COALESCE(management_status, VALUES(management_status))
+            END,
+            region_name = VALUES(region_name),
+            order_time = VALUES(order_time),
+            admin_url = VALUES(admin_url),
+            opt_premium = VALUES(opt_premium),
+            event_date = VALUES(event_date),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <delete id="deleteAllBySiteCode">
+        DELETE FROM sync_orders WHERE site_code = #{siteCode}
+    </delete>
+
+    <!-- 샘플 쿼리 (화이트리스트 기반, SQL Injection 방지됨) -->
+    <select id="executeSampleQuery" resultType="map">
+        <choose>
+            <when test="table == 'sync_orders'">
+                SELECT * FROM sync_orders WHERE site_code = #{siteCode}
+                <choose>
+                    <when test="order == 'ASC'">ORDER BY order_time ASC</when>
+                    <otherwise>ORDER BY order_time DESC</otherwise>
+                </choose>
+                LIMIT 10
+            </when>
+            <when test="table == 'sync_categories'">
+                SELECT * FROM sync_categories WHERE site_code = #{siteCode}
+                <choose>
+                    <when test="order == 'ASC'">ORDER BY created_at ASC</when>
+                    <otherwise>ORDER BY created_at DESC</otherwise>
+                </choose>
+                LIMIT 10
+            </when>
+            <when test="table == 'sync_order_categories'">
+                SELECT soc.*, sc.name as category_name
+                FROM sync_order_categories soc
+                LEFT JOIN sync_categories sc ON soc.category_code = sc.category_code AND soc.site_code = sc.site_code
+                WHERE soc.site_code = #{siteCode}
+                <choose>
+                    <when test="order == 'ASC'">ORDER BY soc.created_at ASC</when>
+                    <otherwise>ORDER BY soc.created_at DESC</otherwise>
+                </choose>
+                LIMIT 10
+            </when>
+            <otherwise>
+                SELECT 'Invalid table' as error
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 관리상태 업데이트 -->
+    <update id="updateManagementStatus">
+        UPDATE sync_orders
+        SET management_status = #{managementStatus}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 관리상태 및 이월 회차 업데이트 -->
+    <update id="updateManagementStatusWithRound">
+        UPDATE sync_orders
+        SET management_status = #{managementStatus},
+            carryover_round = #{carryoverRound},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- ID로 주문 조회 -->
+    <select id="findById" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders WHERE id = #{id}
+    </select>
+
+    <!-- 알림톡 발송 상태 업데이트 -->
+    <update id="updateAlimtalkSent">
+        UPDATE sync_orders
+        SET alimtalk_sent = #{alimtalkSent},
+            alimtalk_sent_at = IF(#{alimtalkSent}, CURRENT_TIMESTAMP, NULL),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 알림톡 발송용 주문 목록 조회 (ID 리스트) -->
+    <select id="findByIdsForAlimtalk" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE id IN
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 리얼타임 체크가 필요한 주문 조회 (5분 이상 지난 것들) -->
+    <select id="findOrdersNeedingRealtimeCheck" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE site_code = #{siteCode}
+          AND id IN
+        <foreach item="id" collection="orderIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND (last_realtime_check IS NULL OR last_realtime_check &lt; DATE_SUB(NOW(), INTERVAL 5 MINUTE))
+    </select>
+
+    <!-- 리얼타임 체크 시간 및 결제상태 업데이트 (관리상태 자동 전이 포함) -->
+    <!-- 공통 전이 규칙: ManagementStatusTransition 참조 -->
+    <update id="updatePaymentStatusAndRealtimeCheck">
+        UPDATE sync_orders
+        SET payment_status = #{paymentStatus},
+            last_realtime_check = CURRENT_TIMESTAMP,
+            management_status = CASE
+                <!-- 결제대기중 → 결제완료: 확인필요로 전이 -->
+                WHEN management_status = '결제대기중' AND #{paymentStatus} = 'PAYMENT_COMPLETE' THEN '확인필요'
+                <!-- 환불 상태로 변경 시: 환불로 전이 (이미 세부 환불 상태인 경우 유지) -->
+                WHEN #{paymentStatus} IN ('REFUND_PROCESSING', 'PARTIAL_REFUND_COMPLETE', 'REFUND_COMPLETE')
+                     AND management_status NOT LIKE '환불%' THEN '환불'
+                ELSE management_status
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 리얼타임 체크 시간만 업데이트 (결제상태 변경 없음) -->
+    <update id="updateRealtimeCheckTime">
+        UPDATE sync_orders
+        SET last_realtime_check = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 관리상태 필터에 결제대기중 추가를 위한 distinct 조회 -->
+    <select id="findDistinctManagementStatuses" resultType="string">
+        SELECT DISTINCT management_status FROM sync_orders
+        WHERE site_code = #{siteCode} AND management_status IS NOT NULL
+        ORDER BY management_status
+    </select>
+
+    <!-- 성별 및 관리상태별 통계 조회 (결제상태 필터 적용: 그리드와 동일 조건) -->
+    <select id="countByGenderAndStatus" resultType="map">
+        SELECT
+            opt_gender,
+            management_status,
+            COUNT(*) as cnt
+        FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+        AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER')
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="preferredDate != null and preferredDate != ''">
+            <!-- 공백 유무 양쪽 케이스 검색: "1월1일" 또는 "1월 1일" -->
+            AND (so.opt_preferred_date LIKE CONCAT('%', #{preferredDate}, '%')
+                 OR so.opt_preferred_date LIKE CONCAT('%', REPLACE(#{preferredDate}, '월', '월 '), '%'))
+        </if>
+        GROUP BY opt_gender, management_status
+    </select>
+
+    <!-- [DEPRECATED] 참석희망날짜 목록 조회 (DB 기반)
+         Imweb API 직접 호출 방식으로 대체됨: /api/sync/product-options 또는 /api/sync/region-options -->
+    <select id="findDistinctPreferredDates" resultType="string">
+        SELECT DISTINCT opt_preferred_date FROM sync_orders
+        WHERE site_code = #{siteCode}
+        <if test="prodNo != null">
+            AND prod_no = #{prodNo}
+        </if>
+        AND opt_preferred_date IS NOT NULL AND opt_preferred_date != ''
+        ORDER BY opt_preferred_date DESC
+    </select>
+
+    <!-- 키워드로 필터링 (이름, 직업, 출생년도) + opt_preferred_date + regionName 필터 -->
+    <select id="findBySiteCodeFilteredV2" resultMap="SyncOrderResultMap">
+        SELECT DISTINCT so.* FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="preferredDate != null and preferredDate != ''">
+            <!-- 공백 유무 양쪽 케이스 검색: "1월1일" 또는 "1월 1일" -->
+            AND (so.opt_preferred_date LIKE CONCAT('%', #{preferredDate}, '%')
+                 OR so.opt_preferred_date LIKE CONCAT('%', REPLACE(#{preferredDate}, '월', '월 '), '%'))
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            <choose>
+                <when test="managementStatus == '환불'">
+                    AND so.management_status LIKE '환불%'
+                </when>
+                <otherwise>
+                    AND so.management_status = #{managementStatus}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="gender != null and gender != ''">
+            AND so.opt_gender = #{gender}
+        </if>
+        <if test="paymentStatuses != null and paymentStatuses.size() > 0">
+            AND so.payment_status IN
+            <foreach collection="paymentStatuses" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach collection="paymentMethods" item="method" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+        <choose>
+            <!-- 날짜필터 없이 전체조회 시: order_event_date_dt 오름차순 (가까운 날짜가 위로) -->
+            <when test="preferredDate == null or preferredDate == ''">
+                ORDER BY so.order_event_date_dt ASC
+            </when>
+            <!-- 날짜필터 검색 시: 기존 정렬 유지 -->
+            <when test="sortBy == 'orderTime'">
+                <choose>
+                    <when test="sortDir == 'ASC'">ORDER BY so.order_time ASC</when>
+                    <otherwise>ORDER BY so.order_time DESC</otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                ORDER BY so.order_time DESC
+            </otherwise>
+        </choose>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 키워드로 필터링된 건수 -->
+    <select id="countBySiteCodeFilteredV2" resultType="long">
+        SELECT COUNT(DISTINCT so.id) FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="preferredDate != null and preferredDate != ''">
+            <!-- 공백 유무 양쪽 케이스 검색: "1월1일" 또는 "1월 1일" -->
+            AND (so.opt_preferred_date LIKE CONCAT('%', #{preferredDate}, '%')
+                 OR so.opt_preferred_date LIKE CONCAT('%', REPLACE(#{preferredDate}, '월', '월 '), '%'))
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            <choose>
+                <when test="managementStatus == '환불'">
+                    AND so.management_status LIKE '환불%'
+                </when>
+                <otherwise>
+                    AND so.management_status = #{managementStatus}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="gender != null and gender != ''">
+            AND so.opt_gender = #{gender}
+        </if>
+        <if test="paymentStatuses != null and paymentStatuses.size() > 0">
+            AND so.payment_status IN
+            <foreach collection="paymentStatuses" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach collection="paymentMethods" item="method" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+    </select>
+
+    <!-- 참여희망날짜 업데이트 (order_event_date_dt도 함께 갱신) -->
+    <update id="updateOptPreferredDate">
+        UPDATE sync_orders
+        SET opt_preferred_date = #{optPreferredDate},
+            order_event_date_dt = #{orderEventDateDt},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- 주문자 정보 수정 (이름, 출생년도, 직업, 연락처, 프로필, 프리미엄) -->
+    <update id="updateOrdererInfo">
+        UPDATE sync_orders
+        SET orderer_name = #{ordererName},
+            opt_birth_year = #{optBirthYear},
+            opt_job = #{optJob},
+            orderer_call = #{ordererCall},
+            opt_profile = #{optProfile},
+            opt_premium = #{optPremium},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- ===== 대시보드 통계 쿼리 ===== -->
+
+    <!-- 전체 주문 건수 -->
+    <select id="countAllOrders" resultType="long">
+        SELECT COUNT(*) FROM sync_orders WHERE site_code = #{siteCode}
+    </select>
+
+    <!-- 확정 주문 건수 -->
+    <select id="countConfirmedOrders" resultType="long">
+        SELECT COUNT(*) FROM sync_orders
+        WHERE site_code = #{siteCode} AND management_status = '확정'
+    </select>
+
+    <!-- 지역별 주문 건수 -->
+    <select id="countByRegion" resultType="map">
+        SELECT
+            COALESCE(region_name, '미지정') as region_name,
+            COUNT(*) as count
+        FROM sync_orders
+        WHERE site_code = #{siteCode}
+        GROUP BY region_name
+        ORDER BY count DESC
+    </select>
+
+    <!-- 성별 주문 건수 -->
+    <select id="countByGender" resultType="map">
+        SELECT
+            COALESCE(opt_gender, '미지정') as gender,
+            COUNT(*) as count
+        FROM sync_orders
+        WHERE site_code = #{siteCode}
+        GROUP BY opt_gender
+        ORDER BY count DESC
+    </select>
+
+    <!-- 최근 주문 목록 (대시보드용) - order_time(주문일) 기준 정렬 -->
+    <select id="findRecentOrders" resultMap="SyncOrderResultMap">
+        SELECT * FROM sync_orders
+        WHERE site_code = #{siteCode}
+          AND payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER')
+        ORDER BY order_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 수동 주문 생성을 위한 다음 주문번호 조회 (음수 시퀀스) -->
+    <!-- 음수 order_no만 대상으로 MIN 계산 (양수는 Imweb 동기화 주문) -->
+    <select id="getNextManualOrderNo" resultType="long">
+        SELECT COALESCE(
+            (SELECT MIN(order_no) FROM sync_orders WHERE site_code = #{siteCode} AND order_no &lt; 0),
+            0
+        ) - 1
+    </select>
+
+    <!-- 수동 주문 생성 (is_manual_order = TRUE) -->
+    <insert id="insertManualOrder" parameterType="org.webnori.ordersyncoffice.domain.SyncOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sync_orders (
+            site_code, unit_code, order_no,
+            orderer_name, orderer_call,
+            opt_gender, opt_birth_year, opt_job, opt_preferred_date, order_event_date_dt,
+            prod_no, region_name,
+            management_status, payment_status,
+            order_time, synced_at,
+            is_manual_order
+        ) VALUES (
+            #{siteCode}, #{unitCode}, #{orderNo},
+            #{ordererName}, #{ordererCall},
+            #{optGender}, #{optBirthYear}, #{optJob}, #{optPreferredDate}, #{orderEventDateDt},
+            #{prodNo}, #{regionName},
+            #{managementStatus}, #{paymentStatus},
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+            TRUE
+        )
+    </insert>
+
+    <!-- 상품코드별 상품명 조회 (첫 번째 레코드의 prod_name 반환) -->
+    <select id="findProductNameByProdNo" resultType="String">
+        SELECT prod_name
+        FROM sync_orders
+        WHERE site_code = #{siteCode}
+          AND prod_no = #{prodNo}
+          AND prod_name IS NOT NULL
+          AND prod_name != ''
+        LIMIT 1
+    </select>
+
+    <!-- 수동 추가 주문 삭제 (is_manual_order = TRUE인 경우만 삭제 가능) -->
+    <delete id="deleteManualOrder">
+        DELETE FROM sync_orders
+        WHERE id = #{id}
+          AND site_code = #{siteCode}
+          AND is_manual_order = TRUE
+    </delete>
+
+    <!-- 매출 합계 조회 (필터 없을 시, 결제완료+확정 상태만) -->
+    <select id="getSalesTotal" resultType="map">
+        SELECT
+            COALESCE(SUM(paid_price), 0) as total_sales,
+            COALESCE(SUM(CASE WHEN opt_gender = '남' THEN paid_price ELSE 0 END), 0) as male_sales,
+            COALESCE(SUM(CASE WHEN opt_gender = '여' THEN paid_price ELSE 0 END), 0) as female_sales,
+            COUNT(*) as total_count
+        FROM sync_orders
+        WHERE site_code = #{siteCode}
+          AND payment_status = 'PAYMENT_COMPLETE'
+          AND management_status = '확정'
+    </select>
+
+    <!-- 매출 합계 조회 (필터 적용, 확정 상태 기준) -->
+    <select id="getSalesTotalFiltered" resultType="map">
+        SELECT
+            COALESCE(SUM(paid_price), 0) as total_sales,
+            COALESCE(SUM(CASE WHEN opt_gender = '남' THEN paid_price ELSE 0 END), 0) as male_sales,
+            COALESCE(SUM(CASE WHEN opt_gender = '여' THEN paid_price ELSE 0 END), 0) as female_sales,
+            COUNT(*) as total_count
+        FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+          AND so.management_status = '확정'
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="preferredDate != null and preferredDate != ''">
+            AND so.opt_preferred_date = #{preferredDate}
+        </if>
+        <if test="managementStatus != null and managementStatus != ''">
+            AND so.management_status = #{managementStatus}
+        </if>
+        <if test="prodNo != null">
+            AND so.prod_no = #{prodNo}
+        </if>
+        <if test="regionName != null and regionName != ''">
+            AND so.region_name = #{regionName}
+        </if>
+        <if test="paymentStatuses != null and paymentStatuses.size() > 0">
+            AND so.payment_status IN
+            <foreach item="status" collection="paymentStatuses" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach item="method" collection="paymentMethods" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+    </select>
+
+    <!-- 대시보드 집계: 일자별/지역별 성별 통계 (오늘부터 미래 N주간) -->
+    <select id="getDashboardAggregation" resultType="map">
+        SELECT
+            DATE(order_event_date_dt) as event_date,
+            region_name,
+            -- 남성 통계
+            SUM(CASE WHEN opt_gender = '남' THEN 1 ELSE 0 END) as male_total,
+            SUM(CASE WHEN opt_gender = '남' AND management_status = '확정' THEN 1 ELSE 0 END) as male_confirmed,
+            SUM(CASE WHEN opt_gender = '남' AND management_status = '대기' THEN 1 ELSE 0 END) as male_waiting,
+            -- 여성 통계
+            SUM(CASE WHEN opt_gender = '여' THEN 1 ELSE 0 END) as female_total,
+            SUM(CASE WHEN opt_gender = '여' AND management_status = '확정' THEN 1 ELSE 0 END) as female_confirmed,
+            SUM(CASE WHEN opt_gender = '여' AND management_status = '대기' THEN 1 ELSE 0 END) as female_waiting
+        FROM sync_orders
+        WHERE site_code = #{siteCode}
+          AND payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER')
+          AND order_event_date_dt IS NOT NULL
+          AND order_event_date_dt >= CURDATE()
+          AND order_event_date_dt &lt;= DATE_ADD(CURDATE(), INTERVAL #{weeks} WEEK)
+        GROUP BY DATE(order_event_date_dt), region_name
+        ORDER BY DATE(order_event_date_dt) ASC, region_name ASC
+    </select>
+
+    <!-- ================================================================= -->
+    <!-- 전체주문 페이지(tables-all) 전용 쿼리                               -->
+    <!-- ================================================================= -->
+
+    <!-- 전체주문 페이지용 매출 합계 (결제완료/환불완료 분리) -->
+    <select id="getSalesTotalAll" resultType="map">
+        SELECT
+            COALESCE(SUM(CASE WHEN so.payment_status = 'PAYMENT_COMPLETE' THEN so.paid_price ELSE 0 END), 0) as paid_total,
+            COALESCE(SUM(CASE WHEN so.payment_status = 'REFUND_COMPLETE' THEN so.paid_price ELSE 0 END), 0) as refund_total
+        FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+          AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER', 'REFUND_COMPLETE')
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach item="method" collection="paymentMethods" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+    </select>
+
+    <!-- 전체주문 페이지용 주문 조회 (성별 분리 없음) -->
+    <select id="findBySiteCodeFilteredAll" resultMap="SyncOrderResultMap">
+        SELECT so.*
+        FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+        <choose>
+            <!-- 결제 필터: management_status = '확인필요' -->
+            <when test="paymentStatusFilter == 'PAID'">
+                AND so.management_status = '확인필요'
+                AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER')
+            </when>
+            <!-- 환불 필터: payment_status = 'REFUND_COMPLETE' -->
+            <when test="paymentStatusFilter == 'REFUND'">
+                AND so.payment_status = 'REFUND_COMPLETE'
+            </when>
+            <!-- 전체: 결제완료 + 환불완료 모두 -->
+            <otherwise>
+                AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER', 'REFUND_COMPLETE')
+            </otherwise>
+        </choose>
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach item="method" collection="paymentMethods" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+        <choose>
+            <when test="sortBy == 'orderNo'">
+                ORDER BY so.order_no ${sortDir}
+            </when>
+            <when test="sortBy == 'syncedAt'">
+                ORDER BY so.synced_at ${sortDir}
+            </when>
+            <otherwise>
+                ORDER BY so.order_time ${sortDir}
+            </otherwise>
+        </choose>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 전체주문 페이지용 카운트 조회 -->
+    <select id="countBySiteCodeFilteredAll" resultType="long">
+        SELECT COUNT(*)
+        FROM sync_orders so
+        WHERE so.site_code = #{siteCode}
+        <choose>
+            <!-- 결제 필터: management_status = '확인필요' -->
+            <when test="paymentStatusFilter == 'PAID'">
+                AND so.management_status = '확인필요'
+                AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER')
+            </when>
+            <!-- 환불 필터: payment_status = 'REFUND_COMPLETE' -->
+            <when test="paymentStatusFilter == 'REFUND'">
+                AND so.payment_status = 'REFUND_COMPLETE'
+            </when>
+            <!-- 전체: 결제완료 + 환불완료 모두 -->
+            <otherwise>
+                AND so.payment_status IN ('PAYMENT_COMPLETE', 'PARTIAL_REFUND_COMPLETE', 'MANUAL_ORDER', 'REFUND_COMPLETE')
+            </otherwise>
+        </choose>
+        <if test="keyword != null and keyword != ''">
+            AND (so.orderer_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_job LIKE CONCAT('%', #{keyword}, '%')
+                 OR so.opt_birth_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND DATE(so.order_event_date_dt) >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND DATE(so.order_event_date_dt) &lt;= #{endDate}
+        </if>
+        <if test="paymentMethods != null and paymentMethods.size() > 0">
+            AND so.payment_method IN
+            <foreach item="method" collection="paymentMethods" open="(" separator="," close=")">
+                #{method}
+            </foreach>
+        </if>
+    </select>
+
+</mapper>
