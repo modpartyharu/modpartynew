@@ -33,6 +33,7 @@ class SyncSchedulerService(
     private val imwebApiService: ImwebApiService,
     private val storeService: StoreService,
     private val regionConfig: RegionConfig,
+    private val productRegionMappingMapper: ProductRegionMappingMapper,
     private val schedulerLogService: SchedulerLogService,
     private val syncService: SyncService  // 공통 유틸 메서드 사용
 ) {
@@ -51,7 +52,16 @@ class SyncSchedulerService(
         // 환불 상태로 간주되는 결제상태 (초기 관리상태 결정 시 사용)
         val REFUND_PAYMENT_STATUSES = setOf("REFUND_PROCESSING", "REFUND_COMPLETE")
     }
+    private fun getDbRegionName(siteCode: String, prodNo: Int?): String? {
+        if (prodNo == null) return null
+        val row = productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo) ?: return null
+        return row["regionName"]?.toString()?.takeIf { it.isNotBlank() }
+    }
 
+    private fun hasActiveDbMapping(siteCode: String, prodNo: Int?): Boolean {
+        if (prodNo == null) return false
+        return productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo) != null
+    }
     /**
      * 1분마다 실행되어 스케줄러 상태를 체크
      * 설정된 간격(runIntervalMinutes)에 따라 nextRunAt 시간이 지났을 때만 동기화 실행
@@ -245,7 +255,10 @@ class SyncSchedulerService(
                         ?.sectionItems?.firstOrNull()
                         ?.productInfo?.prodNo
 
-                    if (!regionConfig.isValidProductCode(firstProdNo)) {
+                    val isSyncTarget =
+                        regionConfig.isValidProductCode(firstProdNo) || hasActiveDbMapping(siteCode, firstProdNo)
+
+                    if (!isSyncTarget) {
                         continue
                     }
 
@@ -253,7 +266,9 @@ class SyncSchedulerService(
                         processOrder(order, siteCode, unitCode, accessToken)
                         syncedCount++
                         processedOrderNos.add(orderNo)
-                        val regionName = regionConfig.getRegionName(firstProdNo) ?: "알수없음"
+                    val regionName = getDbRegionName(siteCode, firstProdNo)
+                            ?: regionConfig.getRegionName(firstProdNo)
+                            ?: "알수없음"
                         schedulerLogService.debug("주문 #${orderNo} 동기화 완료 (${regionName})", siteCode)
                     } catch (e: Exception) {
                         failedCount++
@@ -500,7 +515,7 @@ class SyncSchedulerService(
             optPreferredDate = DateUtils.normalizePreferredDate(parsedOptions.preferredDate),
             orderEventDateDt = DateUtils.parsePreferredDateToDateTime(parsedOptions.preferredDate),
             managementStatus = managementStatus,
-            regionName = regionConfig.getRegionName(prodNo),
+            regionName = getDbRegionName(siteCode, prodNo) ?: regionConfig.getRegionName(prodNo),
             orderTime = syncService.parseUtcToKst(order.wtime),
             adminUrl = order.adminUrl
         )
@@ -694,3 +709,4 @@ data class IncrementalSyncResult(
     val endTime: String? = null,
     val message: String
 )
+
