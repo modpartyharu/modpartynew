@@ -120,17 +120,22 @@ class SyncService(
     // =================================================================
 
     private fun getDbRegionName(siteCode: String, prodNo: Int?): String? {
-        if (prodNo == null) return null
-        return try {
-            // MyBatis XML에서 regionName alias가 있어야 함 (예: SELECT region_name AS regionName)
-            productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo)
-                ?.regionName
-                ?.takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            logger.warn("[기능5] Failed to load DB regionName: siteCode={}, prodNo={}, err={}", siteCode, prodNo, e.message)
-            null
-        }
+    if (prodNo == null) return null
+    return try {
+        val row = productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo)
+            ?: return null
+
+        (row["regionName"] as? String)
+            ?.takeIf { it.isNotBlank() }
+
+    } catch (e: Exception) {
+        logger.warn(
+            "[기능5] Failed to load DB regionName: siteCode={}, prodNo={}, err={}",
+            siteCode, prodNo, e.message
+        )
+        null
     }
+}
 
     private fun hasActiveDbMapping(siteCode: String, prodNo: Int?): Boolean {
         return getDbRegionName(siteCode, prodNo) != null
@@ -1831,3 +1836,4 @@ data class ManualOrderResult(
     val orderNo: Long? = null,
     val message: String
 )
+
