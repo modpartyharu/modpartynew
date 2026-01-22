@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.webnori.ordersyncoffice.mapper.ProductRegionMappingMapper">
+
+  <!-- 1) 목록 조회(활성만) -->
+  <select id="findActiveBySiteCode" resultType="map">
+    SELECT
+      id AS id,
+      site_code AS siteCode,
+      prod_no AS prodNo,
+      region_name AS regionName,
+      is_active AS isActive,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM product_region_mapping
+    WHERE site_code = #{siteCode}
+      AND is_active = 1
+    ORDER BY updated_at DESC
+  </select>
+
+  <!-- 2) 단건 조회(활성만) -->
+  <select id="findActiveBySiteCodeAndProdNo" resultType="map">
+    SELECT
+      id AS id,
+      site_code AS siteCode,
+      prod_no AS prodNo,
+      region_name AS regionName,
+      is_active AS isActive,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM product_region_mapping
+    WHERE site_code = #{siteCode}
+      AND prod_no = #{prodNo}
+      AND is_active = 1
+    LIMIT 1
+  </select>
+
+  <!-- 3) 저장(업서트): 있으면 갱신, 없으면 삽입 -->
+  <insert id="upsert">
+    INSERT INTO product_region_mapping (site_code, prod_no, region_name, is_active)
+    VALUES (#{siteCode}, #{prodNo}, #{regionName}, 1)
+    ON DUPLICATE KEY UPDATE
+      region_name = #{regionName},
+      is_active = 1,
+      updated_at = CURRENT_TIMESTAMP
+  </insert>
+
+  <!-- 4) 비활성화(삭제 대신) -->
+  <update id="deactivate">
+    UPDATE product_region_mapping
+    SET is_active = 0,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE site_code = #{siteCode}
+      AND prod_no = #{prodNo}
+  </update>
+
+</mapper>
