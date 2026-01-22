@@ -1,13 +1,15 @@
 package org.webnori.ordersyncoffice.service
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.webnori.ordersyncoffice.config.RegionConfig
 import org.webnori.ordersyncoffice.domain.*
-import org.webnori.ordersyncoffice.util.DateUtils
 import org.webnori.ordersyncoffice.mapper.*
+import org.webnori.ordersyncoffice.util.DateUtils
+import java.time.Clock
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -38,7 +40,7 @@ class SyncSchedulerService(
     private val syncService: SyncService  // 공통 유틸 메서드 사용
 ) {
     private val logger = LoggerFactory.getLogger(SyncSchedulerService::class.java)
-    private val objectMapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper()
 
     companion object {
         const val SCHEDULER_TYPE = "ORDER_SYNC"
@@ -52,6 +54,11 @@ class SyncSchedulerService(
         // 환불 상태로 간주되는 결제상태 (초기 관리상태 결정 시 사용)
         val REFUND_PAYMENT_STATUSES = setOf("REFUND_PROCESSING", "REFUND_COMPLETE")
     }
+
+    // =========================
+    // DB 우선 매핑 조회 헬퍼
+    // =========================
+
     private fun getDbRegionName(siteCode: String, prodNo: Int?): String? {
         if (prodNo == null) return null
         val row = productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo) ?: return null
@@ -62,6 +69,7 @@ class SyncSchedulerService(
         if (prodNo == null) return false
         return productRegionMappingMapper.findActiveBySiteCodeAndProdNo(siteCode, prodNo) != null
     }
+
     /**
      * 1분마다 실행되어 스케줄러 상태를 체크
      * 설정된 간격(runIntervalMinutes)에 따라 nextRunAt 시간이 지났을 때만 동기화 실행
@@ -85,21 +93,31 @@ class SyncSchedulerService(
             // nextRunAt 확인: 실행 시간이 되었는지 체크
             val nextRunAt = scheduler.nextRunAt
             if (nextRunAt != null && nextRunAt.isAfter(now)) {
-                // 아직 실행 시간이 안됨
                 logger.debug("Not yet time to run for siteCode: {} (next: {})", scheduler.siteCode, nextRunAt)
                 continue
             }
 
             try {
-                logger.info("Running scheduled sync for siteCode: {} (interval: {}min)", scheduler.siteCode, scheduler.runIntervalMinutes)
-                schedulerLogService.info("========== 증분 동기화 시작 (${scheduler.runIntervalMinutes}분 간격) ==========", scheduler.siteCode)
+                logger.info(
+                    "Running scheduled sync for siteCode: {} (interval: {}min)",
+                    scheduler.siteCode,
+                    scheduler.runIntervalMinutes
+                )
+                schedulerLogService.info(
+                    "========== 증분 동기화 시작 (${scheduler.runIntervalMinutes}분 간격) ==========",
+                    scheduler.siteCode
+                )
                 runBlocking {
                     executeIncrementalSync(scheduler.siteCode)
                 }
             } catch (e: Exception) {
                 logger.error("Scheduled sync failed for siteCode: {} - {}", scheduler.siteCode, e.message)
                 schedulerLogService.error("동기화 실패: ${e.message}", scheduler.siteCode)
-                schedulerStatusMapper.updateLastError(scheduler.siteCode, SCHEDULER_TYPE, e.message ?: "Unknown error")
+                schedulerStatusMapper.updateLastError(
+                    scheduler.siteCode,
+                    SCHEDULER_TYPE,
+                    e.message ?: "Unknown error"
+                )
             }
         }
     }
@@ -116,7 +134,7 @@ class SyncSchedulerService(
         // 스케줄러 실행 시간 기록
         schedulerStatusMapper.updateLastRun(siteCode, SCHEDULER_TYPE)
 
-        // 배치용 토큰 획득 (재시도 가능하도록 var로 선언)
+        // 배치용 토큰 획득
         schedulerLogService.debug("배치 토큰 확인 중...", siteCode)
         val initialToken = batchTokenService.getValidAccessToken(siteCode)
         if (initialToken == null) {
@@ -149,25 +167,21 @@ class SyncSchedulerService(
         }
         schedulerLogService.debug("스토어 정보: unitCode=$unitCode", siteCode)
 
-        // 동기화 기간 계산 - 중첩 증분 동기화 방식
-        // 항상 현재시간-24h ~ 현재 범위로 조회하여 Create/Read/Update 모두 커버
+        // 동기화 기간 계산 - 중첩 증분 동기화 방식(항상 최근 24h)
         val displayFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        // API용 ISO 8601 포맷
         val isoFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
-        // 현재 시간 (UTC) - DB의 CURRENT_TIMESTAMP와 동일한 타임존 사용
-        val nowUtc = LocalDateTime.now(UTC_ZONE)
+        // ✅ UTC 현재시간 - 안전한 방식 (LocalDateTime.now(UTC_ZONE) 대신)
+        val nowUtc = LocalDateTime.now(Clock.systemUTC())
 
-        // 중첩 증분 동기화: 항상 24시간 전부터 조회 (릴레이 방식 대신)
         val startTimeUtc = nowUtc.minusHours(OVERLAPPING_SYNC_HOURS)
         val endTimeUtc = nowUtc
         schedulerLogService.info("중첩 증분 동기화: 최근 ${OVERLAPPING_SYNC_HOURS}시간 범위 조회", siteCode)
 
-        // API 호출용 (이미 UTC이므로 변환 불필요)
         val startWtimeIso = startTimeUtc.format(isoFormatter)
         val endWtimeIso = endTimeUtc.format(isoFormatter)
 
-        // 이력 저장용 (UTC -> KST 변환하여 표시)
+        // 표시용 KST
         val startTimeKst = startTimeUtc.plusHours(9)
         val endTimeKst = endTimeUtc.plusHours(9)
         val startDateStr = startTimeKst.format(displayFormatter)
@@ -179,14 +193,13 @@ class SyncSchedulerService(
 
         var syncedCount = 0
         var failedCount = 0
-        val processedOrderNos = mutableSetOf<Long>()  // 중복 처리 방지
+        val processedOrderNos = mutableSetOf<Long>()  // ✅ 중복 처리 방지
 
-        // 토큰 재시도 로직: 1순위 리프레시, 2순위 어드민 토큰 복사
+        // 토큰 재시도 로직: 1순위 어드민 토큰 복사, 2순위 리프레시
         var tokenRetryCount = 0
         val maxTokenRetries = 2
 
         try {
-            // 주문 생성일 기준 조회
             var page = 1
             var hasMore = true
             var totalOrders = 0
@@ -211,17 +224,15 @@ class SyncSchedulerService(
                         schedulerLogService.warn("토큰 오류 발생, 재시도 $tokenRetryCount/$maxTokenRetries ($retryMethod)", siteCode)
 
                         val newToken = if (tokenRetryCount == 1) {
-                            // 1차 재시도: 어드민 토큰 복사 (UI "토큰갱신"과 동일)
                             batchTokenService.forceCopyFromAdmin(siteCode)
                         } else {
-                            // 2차 재시도: 리프레시 토큰
                             batchTokenService.forceRefreshToken(siteCode)
                         }
 
                         if (newToken != null) {
                             accessToken = newToken
                             schedulerLogService.info("토큰 갱신 성공, 재시도 중...", siteCode)
-                            continue  // 같은 페이지 다시 시도
+                            continue
                         } else {
                             schedulerLogService.error("토큰 갱신 실패", siteCode)
                             throw e
@@ -244,7 +255,12 @@ class SyncSchedulerService(
                 for (order in orderList) {
                     val orderNo = order.orderNo ?: continue
 
-                    // 주문 시간이 startTimeKst 이후인지 확인 (정확한 필터링)
+                    // ✅ 중복 처리 방지 (중첩/재시도/페이징에서 같은 주문 재등장 가능)
+                    if (!processedOrderNos.add(orderNo)) {
+                        continue
+                    }
+
+                    // 주문 시간이 startTimeKst 이후인지 확인
                     val orderWtime = order.wtime
                     if (orderWtime != null && isOrderBeforeStartTime(orderWtime, startTimeKst)) {
                         continue
@@ -255,9 +271,8 @@ class SyncSchedulerService(
                         ?.sectionItems?.firstOrNull()
                         ?.productInfo?.prodNo
 
-                    val isSyncTarget =
-                        regionConfig.isValidProductCode(firstProdNo) || hasActiveDbMapping(siteCode, firstProdNo)
-
+                    // ✅ 정책2: RegionConfig 유효 || DB 매핑 존재
+                    val isSyncTarget = regionConfig.isValidProductCode(firstProdNo) || hasActiveDbMapping(siteCode, firstProdNo)
                     if (!isSyncTarget) {
                         continue
                     }
@@ -265,10 +280,11 @@ class SyncSchedulerService(
                     try {
                         processOrder(order, siteCode, unitCode, accessToken)
                         syncedCount++
-                        processedOrderNos.add(orderNo)
-                    val regionName = getDbRegionName(siteCode, firstProdNo)
+
+                        val regionName = getDbRegionName(siteCode, firstProdNo)
                             ?: regionConfig.getRegionName(firstProdNo)
                             ?: "알수없음"
+
                         schedulerLogService.debug("주문 #${orderNo} 동기화 완료 (${regionName})", siteCode)
                     } catch (e: Exception) {
                         failedCount++
@@ -280,14 +296,12 @@ class SyncSchedulerService(
                 hasMore = page < totalPages
                 page++
 
-                // API Rate Limit 방지
                 kotlinx.coroutines.delay(100)
             }
 
-            // 결과 처리: AUTO 동기화는 항상 마지막 기록만 업데이트 (이력이 너무 많이 쌓이는 것 방지)
+            // AUTO 동기화 결과 기록: 마지막 1개만 업데이트
             val lastAutoSync = syncStatusMapper.findLastAutoSync(siteCode, "ORDERS")
             if (lastAutoSync != null) {
-                // 기존 AUTO 기록이 있으면 업데이트 (성공 건수 포함)
                 syncStatusMapper.updateAutoSyncWithCount(
                     lastAutoSync.id!!,
                     startDateStr,
@@ -296,7 +310,6 @@ class SyncSchedulerService(
                     failedCount
                 )
             } else {
-                // 첫 자동 동기화 시에만 새 기록 생성
                 val syncStatus = SyncStatus(
                     siteCode = siteCode,
                     syncType = "ORDERS",
@@ -347,10 +360,8 @@ class SyncSchedulerService(
      */
     private fun isOrderBeforeStartTime(orderWtime: String, startTime: LocalDateTime): Boolean {
         return try {
-            // ISO 8601 포맷 파싱 시도 (여러 형식 지원)
             val orderTimeUtc = when {
                 orderWtime.endsWith("Z") -> {
-                    // 2025-04-24T00:00:00.000Z 또는 2025-04-24T00:00:00Z
                     val cleaned = orderWtime.replace("Z", "").substringBefore(".")
                     LocalDateTime.parse(cleaned, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                 }
@@ -361,7 +372,6 @@ class SyncSchedulerService(
                     LocalDateTime.parse(orderWtime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                 }
             }
-            // UTC -> KST 변환 (+9시간) 후 비교
             val orderTimeKst = orderTimeUtc.plusHours(9)
             orderTimeKst.isBefore(startTime)
         } catch (e: Exception) {
@@ -381,10 +391,8 @@ class SyncSchedulerService(
     ) {
         val orderNo = order.orderNo ?: return
 
-        // 기존 주문 확인
         val existingOrder = syncOrderMapper.findBySiteCodeAndOrderNo(siteCode, orderNo)
 
-        // 첫번째 결제/섹션/상품 정보
         val payment = order.payments?.firstOrNull()
         val section = order.sections?.firstOrNull()
         val firstItem = section?.sectionItems?.firstOrNull()
@@ -427,7 +435,6 @@ class SyncSchedulerService(
             }
         }
 
-        // JSON 변환
         val optionInfoJson = productInfo?.optionInfo?.let {
             try { objectMapper.writeValueAsString(it) } catch (e: Exception) { null }
         }
@@ -438,10 +445,8 @@ class SyncSchedulerService(
             try { objectMapper.writeValueAsString(it) } catch (e: Exception) { null }
         }
 
-        // 주문옵션 파싱
         val parsedOptions = parseOrderOptions(optionInfoJson)
 
-        // 관리상태: 기존 값 유지, 없으면 초기값 결정
         val managementStatus = existingOrder?.managementStatus
             ?: determineInitialManagementStatus(payment?.paymentStatus)
 
@@ -515,6 +520,7 @@ class SyncSchedulerService(
             optPreferredDate = DateUtils.normalizePreferredDate(parsedOptions.preferredDate),
             orderEventDateDt = DateUtils.parsePreferredDateToDateTime(parsedOptions.preferredDate),
             managementStatus = managementStatus,
+            // ✅ DB 우선 regionName
             regionName = getDbRegionName(siteCode, prodNo) ?: regionConfig.getRegionName(prodNo),
             orderTime = syncService.parseUtcToKst(order.wtime),
             adminUrl = order.adminUrl
@@ -550,9 +556,8 @@ class SyncSchedulerService(
         }
     }
 
-    /**
-     * 주문옵션 파싱
-     */
+    // ======= 주문옵션 파싱 =======
+
     private data class ParsedOrderOptions(
         val gender: String? = null,
         val birthYear: String? = null,
@@ -616,10 +621,6 @@ class SyncSchedulerService(
 
     // ========== 스케줄러 관리 API ==========
 
-    /**
-     * 스케줄러 상태 조회
-     * DB에 저장된 시간을 그대로 표시 (서버 timezone = KST 가정)
-     */
     fun getSchedulerStatus(siteCode: String): SchedulerStatusResponse {
         val status = schedulerStatusMapper.findBySiteCodeAndType(siteCode, SCHEDULER_TYPE)
         val displayFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -638,9 +639,6 @@ class SyncSchedulerService(
         }
     }
 
-    /**
-     * 스케줄러 활성화/비활성화
-     */
     fun setSchedulerEnabled(siteCode: String, enabled: Boolean): Boolean {
         val existing = schedulerStatusMapper.findBySiteCodeAndType(siteCode, SCHEDULER_TYPE)
         return if (existing != null) {
@@ -656,11 +654,8 @@ class SyncSchedulerService(
         }
     }
 
-    /**
-     * 스케줄러 활성화 (간격 설정 포함)
-     */
     fun setSchedulerEnabledWithInterval(siteCode: String, enabled: Boolean, intervalMinutes: Int): Boolean {
-        val validInterval = intervalMinutes.coerceIn(1, 60)  // 1분 ~ 60분 범위 제한
+        val validInterval = intervalMinutes.coerceIn(1, 60)
         val existing = schedulerStatusMapper.findBySiteCodeAndType(siteCode, SCHEDULER_TYPE)
         return if (existing != null) {
             schedulerStatusMapper.updateEnabled(siteCode, SCHEDULER_TYPE, enabled, validInterval) > 0
@@ -675,20 +670,14 @@ class SyncSchedulerService(
         }
     }
 
-    /**
-     * 스케줄러 토글 (On <-> Off)
-     */
     fun toggleScheduler(siteCode: String): Boolean {
         val current = schedulerStatusMapper.findBySiteCodeAndType(siteCode, SCHEDULER_TYPE)
         val newEnabled = !(current?.isEnabled ?: false)
         return setSchedulerEnabled(siteCode, newEnabled)
     }
 
-    /**
-     * 스케줄러 간격만 업데이트
-     */
     fun updateSchedulerInterval(siteCode: String, intervalMinutes: Int): Boolean {
-        val validInterval = intervalMinutes.coerceIn(1, 60)  // 1분 ~ 60분 범위 제한
+        val validInterval = intervalMinutes.coerceIn(1, 60)
         val existing = schedulerStatusMapper.findBySiteCodeAndType(siteCode, SCHEDULER_TYPE)
         return if (existing != null) {
             schedulerStatusMapper.updateEnabled(siteCode, SCHEDULER_TYPE, existing.isEnabled, validInterval) > 0
@@ -709,4 +698,3 @@ data class IncrementalSyncResult(
     val endTime: String? = null,
     val message: String
 )
-
